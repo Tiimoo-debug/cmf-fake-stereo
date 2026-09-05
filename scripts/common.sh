@@ -77,13 +77,16 @@ find_tinymix() {
 
 # tinyalsa 2.x uses "tinymix get/set NAME", older builds use "tinymix NAME [val]".
 # Detect once and cache for the life of the process.
+#
+# Detection goes through --help, which 2.x answers even with no sound card
+# present. Do not match on the error text from a bare "tinymix get": 2.x
+# answers that with "no control specified", which reads nothing like a usage
+# message, and guessing "old" from it makes every later write a silent no-op.
 tinymix_style() {
   [ -n "${TINYMIX_STYLE:-}" ] && { echo "$TINYMIX_STYLE"; return 0; }
-  if "$TINYMIX" get 2>&1 | grep -qi 'usage\|no such\|invalid'; then
-    # "get" was understood as a subcommand (it complained about the missing
-    # control name), so this is the new CLI.
+  if "$TINYMIX" --help 2>&1 | grep -qE 'get[[:space:]]+(NAME|<|\[)'; then
     TINYMIX_STYLE=new
-  elif "$TINYMIX" --help 2>&1 | grep -q ' get '; then
+  elif "$TINYMIX" get 2>&1 | grep -qi 'no control specified'; then
     TINYMIX_STYLE=new
   else
     TINYMIX_STYLE=old

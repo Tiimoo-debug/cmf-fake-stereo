@@ -55,16 +55,18 @@ chmod 0700 "$DATADIR" 2>/dev/null
 # report what the device can and cannot do
 ##############################################################################
 ui_print " "
-TINYMIX=""
+set_perm "$MODPATH/bin/tinymix" 0 0 0755
+
+VENDOR_TINYMIX=""
 for c in /vendor/bin/tinymix /system/bin/tinymix /odm/bin/tinymix /data/local/tmp/tinymix; do
-  [ -x "$c" ] && { TINYMIX=$c; break; }
+  [ -x "$c" ] && { VENDOR_TINYMIX=$c; break; }
 done
-if [ -n "$TINYMIX" ]; then
-  ui_print "  tinymix  : $TINYMIX"
+if [ -n "$VENDOR_TINYMIX" ]; then
+  ui_print "  tinymix  : $VENDOR_TINYMIX (from the system)"
 else
-  ui_print "  tinymix  : NOT FOUND"
-  ui_print "             mixer control needs it. The probe still runs and"
-  ui_print "             will collect everything else. See the README."
+  ui_print "  tinymix  : bundled (this device ships none)"
+  ui_print "             static aarch64 build of upstream tinyalsa;"
+  ui_print "             provenance in bin/README.md"
 fi
 
 ACT=0

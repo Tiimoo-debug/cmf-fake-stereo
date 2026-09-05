@@ -185,20 +185,23 @@ Do not run both modules at once.
 
 ---
 
-## If the probe says NO TINYMIX FOUND
+## tinymix
 
-Mixer controls cannot be read or written without a `tinymix` binary, and not
-every vendor ships one. Any of these fixes it:
+Mixer controls cannot be read or written without a `tinymix` binary, and the
+CMF Phone 1 ships none. The module bundles one: a statically linked `aarch64`
+build of upstream tinyalsa, hardware backend only, no `dlopen`. Provenance,
+license and the exact build command are in [`bin/README.md`](bin/README.md).
 
-- Termux: `pkg install tinyalsa` (then `cp $PREFIX/bin/tinymix /data/adb/cmf-stereo/bin/`)
-- any Magisk "tinytools" / tinyalsa module
-- an `arm64` `tinymix` built from AOSP `external/tinyalsa`, pushed to
-  `/data/adb/cmf-stereo/bin/tinymix` and `chmod 0755`
+If you would rather not trust a shipped binary, build it yourself and drop it
+at `/data/adb/cmf-stereo/bin/tinymix` (`chmod 0755`) — that path is searched
+first. Termux's `tinyalsa` package works too.
 
-The module looks in `/data/adb/cmf-stereo/bin`, the module's own `bin/`,
-`/vendor/bin`, `/system/bin`, `/odm/bin`, `/data/local/tmp` and `$PATH`.
-Both the old `tinymix NAME VALUE` and the tinyalsa 2.x
-`tinymix set NAME VALUE` calling conventions are handled.
+Search order: `/data/adb/cmf-stereo/bin`, the module's `bin/`, `/vendor/bin`,
+`/system/bin`, `/odm/bin`, `/data/local/tmp`, then `$PATH`. A vendor-supplied
+`tinymix` wins over the bundled one. Both the tinyalsa 1.x
+`tinymix NAME VALUE` and the 2.x `tinymix set NAME VALUE` calling conventions
+are handled, detected via `--help` rather than by guessing from an error
+message.
 
 ---
 

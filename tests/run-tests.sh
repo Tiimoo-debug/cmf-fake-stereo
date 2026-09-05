@@ -56,6 +56,56 @@ check "strikes counted" "$(boot_strikes)" "2"
 boot_strike_clear
 check "strikes cleared" "$(boot_strikes)" "0"
 
+echo "tinymix CLI detection"
+# Stubs standing in for the two calling conventions. The new-style help text
+# is copied from tinyalsa 2.x (tab-indented, which is what made the first
+# detection attempt fail); the old one from tinyalsa 1.x.
+mkdir -p "$TMP/bin"
+cat > "$TMP/bin/tinymix-new" <<'STUB'
+#!/bin/sh
+case "$1" in
+  --help|-h)
+    printf 'usage: tinymix [options] <command>\noptions:\n\t-h, --help : help\ncommands:\n\tget NAME|ID              : prints the values of a control\n\tset NAME|ID VALUE(S) ... : sets the value of a control\n'
+    exit 0 ;;
+  get)
+    [ -z "${2:-}" ] && { echo "no control specified" >&2; exit 1; }
+    echo "CALLED:get:$2" >> "$STUBLOG"; echo 7; exit 0 ;;
+  set)
+    echo "CALLED:set:$2:$3" >> "$STUBLOG"; exit 0 ;;
+esac
+exit 1
+STUB
+cat > "$TMP/bin/tinymix-old" <<'STUB'
+#!/bin/sh
+case "$1" in
+  --help|-h) echo "Usage: tinymix [-D card] [-a] [ctrl id/name [value(s)]]"; exit 0 ;;
+esac
+if [ $# -eq 2 ]; then echo "CALLED:set:$1:$2" >> "$STUBLOG"; exit 0; fi
+if [ $# -eq 1 ]; then echo "CALLED:get:$1" >> "$STUBLOG"; echo "Mixer name: stub"; echo 7; exit 0; fi
+exit 1
+STUB
+chmod +x "$TMP/bin/tinymix-new" "$TMP/bin/tinymix-old"
+export STUBLOG="$TMP/stub.log"
+
+TINYMIX="$TMP/bin/tinymix-new"; unset TINYMIX_STYLE
+check "tinyalsa 2.x detected as new" "$(tinymix_style)" "new"
+TINYMIX="$TMP/bin/tinymix-old"; unset TINYMIX_STYLE
+check "tinyalsa 1.x detected as old" "$(tinymix_style)" "old"
+
+# The style must translate into the right argv, or writes silently do nothing.
+: > "$STUBLOG"
+TINYMIX="$TMP/bin/tinymix-new"; unset TINYMIX_STYLE; MIXER_CARD=
+check "new-style get value" "$(ctl_get 'Receiver Switch')" "7"
+ctl_set 'Receiver Switch' 1
+check "new-style set argv" "$(grep -c '^CALLED:set:Receiver Switch:1$' "$STUBLOG")" "1"
+
+: > "$STUBLOG"
+TINYMIX="$TMP/bin/tinymix-old"; unset TINYMIX_STYLE
+check "old-style get strips header" "$(ctl_get 'Receiver Switch')" "7"
+ctl_set 'Receiver Switch' 1
+check "old-style set argv" "$(grep -c '^CALLED:set:Receiver Switch:1$' "$STUBLOG")" "1"
+unset TINYMIX TINYMIX_STYLE
+
 echo "xml validation"
 cat > "$TMP/good.xml" <<'XML'
 <?xml version="1.0" encoding="UTF-8"?>
