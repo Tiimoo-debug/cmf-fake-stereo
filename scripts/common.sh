@@ -84,10 +84,16 @@ find_tinymix() {
 # message, and guessing "old" from it makes every later write a silent no-op.
 tinymix_style() {
   [ -n "${TINYMIX_STYLE:-}" ] && { echo "$TINYMIX_STYLE"; return 0; }
-  if "$TINYMIX" --help 2>&1 | grep -qE 'get[[:space:]]+(NAME|<|\[)'; then
+  _help=$("$TINYMIX" --help 2>&1)
+  _get=$("$TINYMIX" get 2>&1)
+  if echo "$_help" | grep -qE 'get[[:space:]]+(NAME|<|\[)'; then
     TINYMIX_STYLE=new
-  elif "$TINYMIX" get 2>&1 | grep -qi 'no control specified'; then
+  elif echo "$_get" | grep -qi 'no control specified'; then
     TINYMIX_STYLE=new
+  elif [ -z "$_help" ] && [ -z "$_get" ]; then
+    # Says nothing to either probe: wrong architecture, or not executable.
+    # Reporting a style here would turn every later write into a silent no-op.
+    TINYMIX_STYLE=unknown
   else
     TINYMIX_STYLE=old
   fi
@@ -101,6 +107,7 @@ _card_args() {
 ctl_get() {
   # ctl_get <control name> -> prints current value, empty on failure
   find_tinymix || return 1
+  [ "$(tinymix_style)" = unknown ] && return 1
   _out=$(
     if [ "$(tinymix_style)" = new ]; then
       # shellcheck disable=SC2046
@@ -119,6 +126,7 @@ ctl_get() {
 ctl_set() {
   # ctl_set <control name> <value>
   find_tinymix || return 1
+  [ "$(tinymix_style)" = unknown ] && return 1
   if [ "$(tinymix_style)" = new ]; then
     # shellcheck disable=SC2046
     "$TINYMIX" $(_card_args) set "$1" "$2" >/dev/null 2>&1

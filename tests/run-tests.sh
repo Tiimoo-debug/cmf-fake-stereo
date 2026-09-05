@@ -104,6 +104,18 @@ TINYMIX="$TMP/bin/tinymix-old"; unset TINYMIX_STYLE
 check "old-style get strips header" "$(ctl_get 'Receiver Switch')" "7"
 ctl_set 'Receiver Switch' 1
 check "old-style set argv" "$(grep -c '^CALLED:set:Receiver Switch:1$' "$STUBLOG")" "1"
+# A binary that cannot execute at all (wrong arch) must not be mistaken for
+# the 1.x CLI - that would make every write a silent no-op.
+cat > "$TMP/bin/tinymix-broken" <<'STUB'
+#!/bin/sh
+exit 126
+STUB
+chmod +x "$TMP/bin/tinymix-broken"
+TINYMIX="$TMP/bin/tinymix-broken"; unset TINYMIX_STYLE
+check "unrunnable binary reported unknown" "$(tinymix_style)" "unknown"
+unset TINYMIX_STYLE
+ctl_set 'Receiver Switch' 1 2>/dev/null
+check "unknown style refuses to write" "$?" "1"
 unset TINYMIX TINYMIX_STYLE
 
 echo "xml validation"

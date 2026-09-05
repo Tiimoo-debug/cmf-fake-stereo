@@ -11,6 +11,7 @@ stereoctl - CMF Phone 1 stereo speaker control
 
   status              show module, daemon and control state
   probe [dir]         dump the audio hardware to /sdcard (or dir)
+  report              fold the newest probe into one shareable .txt
   on | off            arm / disarm the module (no reboot needed)
   apply | revert      one-shot apply or restore of the configured actions
   restart             restart the watcher daemon
@@ -37,7 +38,12 @@ cmd_status() {
   echo "mode:      $MODE (interval ${WATCH_INTERVAL}s)"
   if _p=$(daemon_pid); then echo "daemon:    running (pid $_p)"; else echo "daemon:    not running"; fi
   if find_tinymix; then
-    echo "tinymix:   $TINYMIX ($(tinymix_style) style)"
+    _st=$(tinymix_style)
+    if [ "$_st" = unknown ]; then
+      echo "tinymix:   $TINYMIX - UNUSABLE (wrong arch, or not executable)"
+    else
+      echo "tinymix:   $TINYMIX ($_st style)"
+    fi
   else
     echo "tinymix:   NOT FOUND - mixer actions cannot run"
   fi
@@ -60,6 +66,40 @@ cmd_status() {
       printf '  %-6s %-42s want=%-10s now=%s\n' "$kind" "$target" "$value" "${_now:-<missing>}"
     done
   fi
+}
+
+# Chat and mail clients routinely refuse .tar.gz. This folds the parts worth
+# reading into a single plain text file that is easy to attach.
+cmd_report() {
+  # Pick the newest probe DIRECTORY. The plain glob also matches the tarball
+  # sitting beside it, which sorts last and is not a directory.
+  _dir=${1:-}
+  if [ -z "$_dir" ]; then
+    for _d in /sdcard/cmf-stereo-probe-*; do
+      [ -d "$_d" ] && _dir=$_d
+    done
+  fi
+  [ -n "$_dir" ] && [ -d "$_dir" ] || { echo "no probe report found - run: stereoctl probe"; return 1; }
+  _out=/sdcard/cmf-stereo-report.txt
+  {
+    for f in SUMMARY.txt 00-device.txt 01-alsa.txt 02-mixer.txt 03-candidates.txt \
+             04-amplifier.txt 06-speaker-port.txt 07-hal.txt 10-safety.txt \
+             09-audio-param/index.txt; do
+      [ -f "$_dir/$f" ] || continue
+      echo "######## $f ########"
+      cat "$_dir/$f"
+      echo
+    done
+    for f in "$_dir"/05-hal-configs/*audio_policy_configuration*.xml; do
+      [ -f "$f" ] || continue
+      echo "######## $(basename "$f") ########"
+      cat "$f"
+      echo
+    done
+  } > "$_out" 2>&1
+  chmod 0644 "$_out" 2>/dev/null
+  echo "wrote $_out ($(du -h "$_out" 2>/dev/null | cut -f1), $(grep -c . "$_out") lines)"
+  echo "source: $_dir"
 }
 
 cmd_scan() {
@@ -102,6 +142,7 @@ cmd_restart() {
 case ${1:-status} in
   status)  cmd_status ;;
   probe)   sh "$MODDIR/scripts/probe.sh" "$2" ;;
+  report)  cmd_report "$2" ;;
   on)      rm -f "$KILLSWITCH"; echo "armed"; cmd_restart ;;
   off)     touch "$KILLSWITCH"; revert_actions; echo "disarmed and reverted" ;;
   apply)   apply_actions; echo "applied"; ;;

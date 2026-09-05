@@ -70,6 +70,7 @@ this whole tree — it is the most promising lead.
 ```
 stereoctl status              module, daemon, and live control values
 stereoctl probe [dir]         dump the audio hardware
+stereoctl report              fold the newest probe into one shareable .txt
 stereoctl on | off            arm / disarm, no reboot
 stereoctl apply | revert      one-shot apply / restore
 stereoctl restart             restart the watcher daemon
