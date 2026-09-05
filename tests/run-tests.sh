@@ -82,9 +82,12 @@ case "$1" in
   --help|-h) printf 'commands:\n\tget NAME|ID : x\n\tset NAME|ID VALUE : x\n'; exit 0 ;;
   get)
     case "$2" in
-      'RCV Mux')        echo 'Open, Mute, > Voice Playback, Test Mode,' ;;
-      'Handset Volume') echo '31 (range 0->18)' ;;
-      *)                echo 'Off' ;;
+      'RCV Mux')                  echo 'Open, Mute, > Voice Playback, Test Mode,' ;;
+      'Handset Volume')           echo '31 (range 0->18)' ;;
+      'ADDA_DL_CH1 DL_24CH_CH1')  echo 'Off' ;;
+      # Real tinymix errors out on an unknown control rather than
+      # answering with a value.
+      *) echo 'Invalid mixer control' >&2; exit 1 ;;
     esac
     exit 0 ;;
   set) echo "CALLED:set:$2:$3" >> "$STUBLOG"; exit 0 ;;
@@ -103,6 +106,18 @@ ctl_set 'Handset Volume' "$(ctl_get 'Handset Volume')"
 check "revert sets a bare integer" \
   "$(grep -c '^CALLED:set:Handset Volume:31$' "$STUBLOG")" "1"
 unset TINYMIX TINYMIX_STYLE
+
+echo "guard control"
+TINYMIX="$TMP/bin/tinymix-fmt"; unset TINYMIX_STYLE
+GUARD_CTL=; GUARD_VALUE=
+check "no guard configured -> always ok" "$(guard_ok && echo yes || echo no)" "yes"
+GUARD_CTL='RCV Mux'; GUARD_VALUE='Voice Playback'
+check "guard matches -> ok"      "$(guard_ok && echo yes || echo no)" "yes"
+GUARD_VALUE='Open'
+check "guard differs -> blocked" "$(guard_ok && echo yes || echo no)" "no"
+GUARD_CTL='No Such Control'; GUARD_VALUE='Enable'
+check "missing guard control does not block" "$(guard_ok && echo yes || echo no)" "yes"
+GUARD_CTL=; GUARD_VALUE=; unset TINYMIX TINYMIX_STYLE
 
 echo "mixer snapshot diff"
 cat > "$TMP/snap.a" <<'SNAP'

@@ -21,6 +21,8 @@ WATCH_INTERVAL=2
 LOG_LEVEL=info
 LOG_MAX_KB=512
 MIXER_CARD=
+GUARD_CTL=
+GUARD_VALUE=
 
 mkdir -p "$DATADIR" "$STATEDIR" 2>/dev/null
 
@@ -189,6 +191,18 @@ speaker_route_active() {
   [ -z "$_dump" ] && return 0
   echo "$_dump" | grep -qiE 'BLUETOOTH_A2DP|WIRED_HEADPHONE|WIRED_HEADSET|USB_HEADSET' && return 1
   return 0
+}
+
+# Only drive the earpiece while a named control holds a given value. On the
+# CMF Phone 1 the guard is the speaker amp's own switch: the HAL disables it
+# when headphones or Bluetooth take over, so this costs one mixer read per
+# cycle instead of a dumpsys, and it means the earpiece never plays into an
+# empty room while you are wearing headphones.
+guard_ok() {
+  [ -n "${GUARD_CTL:-}" ] || return 0
+  _g=$(ctl_get "$GUARD_CTL" 2>/dev/null)
+  [ -n "$_g" ] || return 0     # control missing: do not block on it
+  [ "$_g" = "$GUARD_VALUE" ]
 }
 
 ##############################################################################

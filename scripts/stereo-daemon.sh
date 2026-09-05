@@ -47,8 +47,8 @@ while true; do
 
   want=0
   case $MODE in
-    always)   want=1 ;;
-    *)        playback_active && speaker_route_active && want=1 ;;
+    always)   guard_ok && want=1 ;;
+    *)        playback_active && speaker_route_active && guard_ok && want=1 ;;
   esac
 
   if [ $want -eq 1 ]; then

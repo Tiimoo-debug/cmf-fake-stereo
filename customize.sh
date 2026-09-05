@@ -38,10 +38,34 @@ esac
 mkdir -p "$DATADIR/state" "$DATADIR/bin"
 
 if [ -f "$DATADIR/stereo.conf" ]; then
-  ui_print "  keeping existing stereo.conf"
+  # Keep the user's settings, but add keys introduced by newer versions -
+  # otherwise an upgrade silently runs without them.
+  ADDED=0
+  for KEY in ENABLED MODE WATCH_INTERVAL STARTUP_DELAY REQUIRE_SPEAKER_ROUTE \
+             GUARD_CTL GUARD_VALUE MIXER_CARD LOG_LEVEL LOG_MAX_KB; do
+    grep -q "^[[:space:]]*$KEY=" "$DATADIR/stereo.conf" && continue
+    DEF=$(grep "^$KEY=" "$MODPATH/config/stereo.conf" | head -n 1)
+    [ -n "$DEF" ] || continue
+    [ "$ADDED" -eq 0 ] && echo "" >> "$DATADIR/stereo.conf" && \
+      echo "# --- added by v$(grep_prop version "$MODPATH/module.prop") ---" >> "$DATADIR/stereo.conf"
+    echo "$DEF" >> "$DATADIR/stereo.conf"
+    ADDED=$((ADDED + 1))
+  done
+  if [ "$ADDED" -gt 0 ]; then
+    ui_print "  kept stereo.conf, added $ADDED new setting(s)"
+  else
+    ui_print "  keeping existing stereo.conf"
+  fi
 else
   cp -f "$MODPATH/config/stereo.conf" "$DATADIR/stereo.conf"
   ui_print "  installed default stereo.conf"
+fi
+
+# The guard is device-specific, so set it where we know what it should be.
+if [ "$IS_CMF1" = 1 ]; then
+  sed -i "s/^GUARD_CTL=.*/GUARD_CTL='aw_dev_0_switch'/; s/^GUARD_VALUE=.*/GUARD_VALUE='Enable'/" \
+    "$DATADIR/stereo.conf" 2>/dev/null
+  ui_print "  guard: earpiece follows the speaker amp"
 fi
 
 # Ship the verified routing on the device it was verified on. An actions.conf

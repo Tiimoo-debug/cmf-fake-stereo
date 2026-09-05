@@ -133,6 +133,23 @@ prop|<property>|<value>              set a system property
 `MODE=always` keeps it on permanently — louder in theory, harder on the
 earpiece, and it costs idle power.
 
+`GUARD_CTL` / `GUARD_VALUE` gate the routing on a mixer control's value. On
+the CMF Phone 1 the guard is `aw_dev_0_switch` = `Enable`: the HAL disables
+the speaker amp when headphones or Bluetooth take over, so the earpiece
+follows the speaker instead of playing to nobody. One mixer read per cycle,
+no `dumpsys`.
+
+### Earpiece gain
+
+`Handset Volume` advertises `range 0->18`, but that ceiling is misdeclared —
+the HAL's own default is 31, matching its Headset and Lineout settings. 31 is
+also the true hardware ceiling: the register field is 5 bits, so 40 wraps to
+8 and gets *quieter*. Measured on the device.
+
+`ADDA_DL_GAIN` is deliberately left alone. The HAL raises it to ~63311 of
+65535 by itself when a stream starts, and pinning it to maximum would also
+raise headphone output, which shares the ADDA path.
+
 ---
 
 ## Why it ships empty elsewhere
