@@ -70,7 +70,7 @@ else
 fi
 
 ACT=0
-[ -f "$DATADIR/actions.conf" ] && ACT=$(grep -vc '^[[:space:]]*#\|^[[:space:]]*$' "$DATADIR/actions.conf" 2>/dev/null)
+[ -f "$DATADIR/actions.conf" ] && ACT=$(grep -vcE '^[[:space:]]*#|^[[:space:]]*$' "$DATADIR/actions.conf" 2>/dev/null)
 ui_print "  actions  : $ACT configured"
 
 ui_print " "

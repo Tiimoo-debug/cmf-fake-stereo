@@ -56,6 +56,16 @@ check "strikes counted" "$(boot_strikes)" "2"
 boot_strike_clear
 check "strikes cleared" "$(boot_strikes)" "0"
 
+echo "portability lint"
+# Android's grep is toybox: it treats \| in a basic regex as a literal, so
+# every pattern written that way matches nothing and reports it as a clean
+# zero. This cost a full probe cycle - three "0 hits" summary lines that were
+# the greps failing, not the hardware missing. Alternation must use -E.
+BRE=$(grep -n 'grep' "$ROOT"/scripts/* "$ROOT"/customize.sh "$ROOT"/service.sh \
+        "$ROOT"/post-fs-data.sh "$ROOT"/uninstall.sh 2>/dev/null \
+        | grep -c '\\|' )
+check "no BRE alternation in any grep" "$BRE" "0"
+
 echo "tinymix CLI detection"
 # Stubs standing in for the two calling conventions. The new-style help text
 # is copied from tinyalsa 2.x (tab-indented, which is what made the first

@@ -24,8 +24,8 @@ else
     return 1
   }
   tinymix_style() {
-    if "$TINYMIX" get 2>&1 | grep -qi 'usage\|no such\|invalid'; then echo new
-    elif "$TINYMIX" --help 2>&1 | grep -q ' get '; then echo new
+    if "$TINYMIX" --help 2>&1 | grep -qE 'get[[:space:]]+(NAME|<|\[)'; then echo new
+    elif "$TINYMIX" get 2>&1 | grep -qi 'no control specified'; then echo new
     else echo old; fi
   }
 fi
@@ -53,7 +53,7 @@ say "Probing audio hardware -> $OUT"
     echo "$p=$(getprop $p)"
   done
   sec "audio-related properties"
-  getprop | grep -i 'audio\|sound\|speaker\|codec\|smartpa\|\bpa\b' 
+  getprop | grep -iE 'audio|sound|speaker|codec|smartpa|amp'
 } > "$OUT/00-device.txt" 2>&1
 say "  [1/11] device identity"
 
@@ -100,13 +100,13 @@ say "  [3/11] mixer controls"
 {
   if [ -s "$OUT/02-mixer.txt" ]; then
     sec "lines matching receiver / earpiece / handset"
-    grep -in 'receiver\|earpiece\|rcv\|handset\|ear_\|_ear' "$OUT/02-mixer.txt"
+    grep -inE 'receiver|earpiece|rcv|handset|ear_|_ear' "$OUT/02-mixer.txt"
     sec "lines matching speaker / spk / smart PA"
-    grep -in 'speaker\|spk\|smartpa\|aw8\|tfa\|cs35\|sipa\|fs16\|awinic' "$OUT/02-mixer.txt"
+    grep -inE 'speaker|spk|smartpa|aw8|tfa|cs35|sipa|fs16|awinic' "$OUT/02-mixer.txt"
     sec "lines matching output stage / DAC / amp / gain"
-    grep -in 'lineout\|dac\|amp\|pga\|gain\|volume\|hp ' "$OUT/02-mixer.txt"
+    grep -inE 'lineout|dac|amp|pga|gain|volume|mux|hp ' "$OUT/02-mixer.txt"
     sec "lines matching mixer routing (DLx / UL / I2S / TDM)"
-    grep -in 'dl1\|dl2\|dl3\|dl_\|i2s\|tdm\|adda\|hostless' "$OUT/02-mixer.txt"
+    grep -inE 'dl1|dl2|dl3|dl_|i2s|tdm|adda|hostless' "$OUT/02-mixer.txt"
   fi
 } > "$OUT/03-candidates.txt" 2>&1
 say "  [4/11] candidate controls"
@@ -132,7 +132,7 @@ say "  [4/11] candidate controls"
   sec "loaded modules"; lsmod 2>&1 | head -n 80
   sec "codec-related kernel log"
   (dmesg 2>/dev/null || cat /proc/kmsg 2>/dev/null) \
-    | grep -i 'codec\|asoc\|snd\|smartpa\|aw88\|tfa\|speaker\|receiver\|mt6\(3\|8\)' \
+    | grep -iE 'codec|asoc|snd|smartpa|aw88|tfa|speaker|receiver|mt6(3|8)' \
     | tail -n 200
 } > "$OUT/04-amplifier.txt" 2>&1
 say "  [5/11] amplifier drivers"
@@ -185,7 +185,7 @@ say "  [7/11] speaker device port"
   sec "audio HAL services"
   ls -l /vendor/bin/hw/ 2>/dev/null | grep -i audio
   sec "running audio processes"
-  ps -A 2>/dev/null | grep -i 'audio\|media' | grep -v grep
+  ps -A 2>/dev/null | grep -iE 'audio|media' | grep -v grep
   sec "soundfx"
   ls -l /vendor/lib*/soundfx/ /system/lib*/soundfx/ 2>&1
   sec "audio HAL manifest entries"
@@ -225,17 +225,17 @@ done
     [ -d "$dir" ] && ls -l "$dir" 2>&1
   done
   sec "2nd loudspeaker / bes_loudness / ACF hits across vendor configs"
-  grep -ril 'bes_loudness\|2nd Loudspeaker\|Sep_LR\|SecondSpk\|2nd-ACF\|spk2\|Speaker2' \
+  grep -rilE 'bes_loudness|2nd Loudspeaker|Sep_LR|SecondSpk|2nd-ACF|spk2|Speaker2' \
     /vendor/etc /odm/etc 2>/dev/null | head -n 40
   sec "matching lines"
-  grep -rih 'bes_loudness_Sep_LR\|2nd Loudspeaker\|2nd-ACF\|SecondSpk\|Speaker2\|spk2' \
+  grep -rihE 'bes_loudness_Sep_LR|2nd Loudspeaker|2nd-ACF|SecondSpk|Speaker2|spk2' \
     /vendor/etc /odm/etc 2>/dev/null | head -n 120
   sec "legacy audio_policy.conf"
   for f in /vendor/etc/audio_policy.conf /system/etc/audio_policy.conf /odm/etc/audio_policy.conf; do
     [ -f "$f" ] && { echo "--- $f"; cat "$f"; }
   done
   sec "aaudio / mmap properties (context for the Hi-Res module)"
-  getprop | grep -i 'aaudio\|mmap'
+  getprop | grep -iE 'aaudio|mmap'
 } > "$OUT/09-audio-param/index.txt" 2>&1
 say "  [10/11] MediaTek AudioParam tree"
 
@@ -245,8 +245,8 @@ say "  [10/11] MediaTek AudioParam tree"
 {
   sec "receiver / earpiece gain-ish mixer controls and their current values"
   if [ -s "$OUT/02-mixer.txt" ]; then
-    grep -in 'receiver\|earpiece\|rcv\|handset\|voice' "$OUT/02-mixer.txt" \
-      | grep -i 'volume\|gain\|pga\|db' | head -n 40
+    grep -inE 'receiver|earpiece|rcv|handset|voice' "$OUT/02-mixer.txt" \
+      | grep -iE 'volume|gain|pga|db' | head -n 40
   fi
   sec "audio thermal / protection nodes"
   find /sys -maxdepth 6 \( -iname '*spk*prot*' -o -iname '*temp*cal*' -o -iname '*calib*' \) \
@@ -271,9 +271,9 @@ say "  [11/11] safety baseline"
   else
     echo "tinymix:    NOT FOUND  <-- blocks mixer control; see README"
   fi
-  echo "receiver-ish control lines: $(grep -ic 'receiver\|earpiece\|rcv\|handset' "$OUT/02-mixer.txt" 2>/dev/null)"
-  echo "smart PA hits:              $(grep -ic 'aw88\|tfa\|cs35\|sipa\|fs16\|smartpa' "$OUT/04-amplifier.txt" 2>/dev/null)"
-  echo "2nd-loudspeaker hits:       $(grep -ic 'bes_loudness\|2nd Loudspeaker\|Sep_LR' "$OUT/09-audio-param/index.txt" 2>/dev/null)"
+  echo "receiver-ish control lines: $(grep -icE 'receiver|earpiece|rcv|handset' "$OUT/02-mixer.txt" 2>/dev/null)"
+  echo "smart PA hits:              $(grep -icE 'aw88|tfa|cs35|sipa|fs16|smartpa' "$OUT/04-amplifier.txt" 2>/dev/null)"
+  echo "2nd-loudspeaker hits:       $(grep -icE 'bes_loudness|2nd Loudspeaker|Sep_LR' "$OUT/09-audio-param/index.txt" 2>/dev/null)"
   echo "param XMLs captured:        $(ls -1 "$OUT/09-audio-param" 2>/dev/null | wc -l)"
   echo
   echo "Files:"

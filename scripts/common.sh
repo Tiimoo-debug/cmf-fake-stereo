@@ -161,7 +161,7 @@ speaker_route_active() {
   [ "${REQUIRE_SPEAKER_ROUTE:-0}" = 1 ] || return 0
   _dump=$(dumpsys audio 2>/dev/null | head -n 200)
   [ -z "$_dump" ] && return 0
-  echo "$_dump" | grep -qi 'BLUETOOTH_A2DP\|WIRED_HEADPHONE\|WIRED_HEADSET\|USB_HEADSET' && return 1
+  echo "$_dump" | grep -qiE 'BLUETOOTH_A2DP|WIRED_HEADPHONE|WIRED_HEADSET|USB_HEADSET' && return 1
   return 0
 }
 

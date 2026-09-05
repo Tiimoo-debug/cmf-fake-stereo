@@ -104,11 +104,11 @@ cmd_report() {
 
 cmd_scan() {
   find_tinymix || { echo "tinymix not found - see the README"; return 1; }
-  _pat=${1:-'receiver\|earpiece\|rcv\|handset\|spk\|speaker'}
+  _pat=${1:-'receiver|earpiece|rcv|handset|spk|speaker|mux|amp'}
   if [ "$(tinymix_style)" = new ]; then
-    "$TINYMIX" contents 2>/dev/null | grep -i "$_pat"
+    "$TINYMIX" contents 2>/dev/null | grep -iE "$_pat"
   else
-    "$TINYMIX" 2>/dev/null | grep -i "$_pat"
+    "$TINYMIX" 2>/dev/null | grep -iE "$_pat"
   fi
 }
 
