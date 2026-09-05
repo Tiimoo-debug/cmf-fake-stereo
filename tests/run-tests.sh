@@ -117,6 +117,12 @@ GUARD_VALUE='Open'
 check "guard differs -> blocked" "$(guard_ok && echo yes || echo no)" "no"
 GUARD_CTL='No Such Control'; GUARD_VALUE='Enable'
 check "missing guard control does not block" "$(guard_ok && echo yes || echo no)" "yes"
+GUARD_CTL='RCV Mux'; GUARD_VALUE='Open'
+check "guard blocks before bypass" "$(guard_ok && echo yes || echo no)" "no"
+touch "$DATADIR/guard_bypass"
+check "bypass overrides a failing guard" "$(guard_ok && echo yes || echo no)" "yes"
+rm -f "$DATADIR/guard_bypass"
+check "bypass removed -> blocked again" "$(guard_ok && echo yes || echo no)" "no"
 GUARD_CTL=; GUARD_VALUE=; unset TINYMIX TINYMIX_STYLE
 
 echo "mixer snapshot diff"

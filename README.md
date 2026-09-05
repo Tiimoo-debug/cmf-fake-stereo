@@ -114,7 +114,9 @@ another MTK device it may be the better route.
 stereoctl status              module, daemon, and live control values
 stereoctl probe [dir]         dump the audio hardware
 stereoctl report              fold the newest probe into one shareable .txt
-stereoctl on | off            arm / disarm, no reboot
+stereoctl on | off            arm / disarm (off survives a reboot)
+stereoctl solo | unsolo       speaker off, earpiece only - for auditioning
+stereoctl guard on | off      re-enable / bypass the speaker-follows guard
 stereoctl apply | revert      one-shot apply / restore
 stereoctl restart             restart the watcher daemon
 stereoctl log [n]             tail the log

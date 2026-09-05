@@ -12,7 +12,10 @@ stereoctl - CMF Phone 1 stereo speaker control
   status              show module, daemon and control state
   probe [dir]         dump the audio hardware to /sdcard (or dir)
   report              fold the newest probe into one shareable .txt
-  on | off            arm / disarm the module (no reboot needed)
+  on | off            arm / disarm the module (survives reboot)
+  solo                speaker off, earpiece only - for auditioning
+  unsolo              back to normal
+  guard on | off      re-enable / bypass the speaker-follows guard
   apply | revert      one-shot apply or restore of the configured actions
   restart             restart the watcher daemon
   log [n]             tail the log (default 50 lines)
@@ -160,6 +163,38 @@ cmd_ctl() {
 # left running keeps restoring saved originals underneath you, so a manual
 # "stereoctl ctl ..." appears to succeed and is silently undone seconds later
 # - which makes hand testing produce meaningless results.
+# Audition the earpiece on its own. Bypasses the guard first, otherwise
+# silencing the speaker amp silences the earpiece with it.
+cmd_solo() {
+  touch "$DATADIR/guard_bypass"
+  if [ -n "${GUARD_CTL:-}" ]; then
+    _was=$(ctl_get "$GUARD_CTL")
+    printf '%s' "$_was" > "$DATADIR/solo_prev"
+    # Anything that is not GUARD_VALUE means "off" for a two-state control.
+    case $(ctl_get_raw "$GUARD_CTL") in
+      *Disable*) ctl_set "$GUARD_CTL" Disable ;;
+      *)         ctl_set "$GUARD_CTL" 0 ;;
+    esac
+    echo "speaker off ($GUARD_CTL was $_was), guard bypassed"
+  else
+    echo "guard bypassed (no GUARD_CTL configured)"
+  fi
+  echo "earpiece only - run 'stereoctl unsolo' when done"
+}
+
+cmd_unsolo() {
+  rm -f "$DATADIR/guard_bypass"
+  if [ -n "${GUARD_CTL:-}" ]; then
+    _prev=$(cat "$DATADIR/solo_prev" 2>/dev/null)
+    [ -z "$_prev" ] && _prev=$GUARD_VALUE
+    ctl_set "$GUARD_CTL" "$_prev"
+    rm -f "$DATADIR/solo_prev"
+    echo "speaker restored to $_prev, guard active"
+  else
+    echo "guard active"
+  fi
+}
+
 cmd_off() {
   touch "$KILLSWITCH"
   if _p=$(daemon_pid); then
@@ -171,6 +206,7 @@ cmd_off() {
   fi
   revert_actions
   echo "disarmed and reverted - controls are yours until 'stereoctl on'"
+  echo "note: this survives a reboot. 'stereoctl on' to re-arm."
 }
 
 cmd_restart() {
@@ -186,6 +222,14 @@ case ${1:-status} in
   report)  cmd_report "$2" ;;
   on)      rm -f "$KILLSWITCH"; echo "armed"; cmd_restart ;;
   off)     cmd_off ;;
+  solo)    cmd_solo ;;
+  unsolo)  cmd_unsolo ;;
+  guard)   case ${2:-status} in
+             off)    touch "$DATADIR/guard_bypass"; echo "guard bypassed" ;;
+             on)     rm -f "$DATADIR/guard_bypass"; echo "guard active" ;;
+             *)      [ -f "$DATADIR/guard_bypass" ] && echo "guard: bypassed" \
+                       || echo "guard: ${GUARD_CTL:-none} = ${GUARD_VALUE:-}" ;;
+           esac ;;
   apply)   apply_actions; echo "applied"; ;;
   revert)  revert_actions; echo "reverted" ;;
   restart) cmd_restart ;;

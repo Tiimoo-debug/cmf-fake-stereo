@@ -199,6 +199,10 @@ speaker_route_active() {
 # cycle instead of a dumpsys, and it means the earpiece never plays into an
 # empty room while you are wearing headphones.
 guard_ok() {
+  # Bypass exists because the guard defeats the obvious way to audition the
+  # earpiece: disabling the speaker amp is exactly what the guard reads as
+  # "headphones took over".
+  [ -f "$DATADIR/guard_bypass" ] && return 0
   [ -n "${GUARD_CTL:-}" ] || return 0
   _g=$(ctl_get "$GUARD_CTL" 2>/dev/null)
   [ -n "$_g" ] || return 0     # control missing: do not block on it
