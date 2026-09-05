@@ -78,6 +78,29 @@ on, then open `RCV Mux`, and the earpiece plays.
 There is only one Awinic device (`aw_dev_0`), so there is no second amp
 channel to press into service — the internal codec was the only way in.
 
+### No left/right split, and why
+
+Both transducers are hard-wired to channel 1 of the DL mixer:
+
+- **Speaker**: `I2SOUT4_CH1 <- DL_24CH_CH1` only. Cutting CH1 silences it;
+  cutting CH2 changes nothing. `I2SOUT4_CH1` offers no `DL_24CH_CH2` source,
+  so the speaker cannot be moved to the right channel.
+- **Earpiece**: `RCV <- ADDA_DL_CH1 <- DL_24CH_CH1` only. Feeding
+  `ADDA_DL_CH2` instead leaves the receiver path unpowered — visible as
+  `Handset Volume` refusing to hold a non-zero value, because the register
+  will not latch while DAPM has the path down.
+
+So this module gives you both drivers playing the same content: more output
+and a fuller, taller image than the single bottom speaker, but not two
+independent channels. True stereo is not reachable from userspace here.
+
+**Do not run `stereoctl xml-patch` on this device.** The mono speaker port is
+what makes the framework sum L+R before `DL_24CH`, so CH1 carries the whole
+mix. Widening it to stereo would put only the left channel on CH1 — and since
+both outputs read CH1, the right channel would be lost entirely. The
+`xml-patch` machinery stays in the module for other hardware, where the
+speaker and earpiece can be fed from different channels.
+
 MediaTek's "2nd loudspeaker" machinery (`bes_loudness_Sep_LR_Filter`,
 `2nd-ACF`) is **not** present on this build, despite being the mechanism the
 Hi-Res Audio module aims at. The probe still captures that tree, because on
