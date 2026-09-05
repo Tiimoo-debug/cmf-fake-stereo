@@ -79,6 +79,7 @@ stereoctl log [n]             tail the log
 stereoctl scan [pattern]      search the mixer for candidate controls
 stereoctl ctl NAME [VALUE]    read or write one mixer control
 stereoctl dump                every control and its value
+stereoctl diff [seconds]      snapshot the mixer, wait, show what changed
 
 stereoctl xml-patch           install the stereo speaker-port overlay (reboot)
 stereoctl xml-revert          remove it (reboot)

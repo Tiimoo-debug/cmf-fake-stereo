@@ -343,3 +343,37 @@ boot_strike_add() {
 boot_strike_clear() {
   echo 0 > "$BOOTCOUNT"
 }
+
+##############################################################################
+# mixer snapshots
+#
+# The fastest way to find which controls carry media is to watch what the HAL
+# itself changes when playback starts. Guessing at names is how you end up
+# writing to a path the media stream never reaches.
+##############################################################################
+
+mixer_snapshot() {
+  # mixer_snapshot <file>
+  find_tinymix || return 1
+  [ "$(tinymix_style)" = unknown ] && return 1
+  if [ "$(tinymix_style)" = new ]; then
+    "$TINYMIX" contents 2>/dev/null > "$1"
+  else
+    "$TINYMIX" 2>/dev/null > "$1"
+  fi
+  [ -s "$1" ]
+}
+
+# Print controls whose value differs between two snapshots. Keyed on the
+# leading control id so a renamed or reordered list cannot produce noise.
+diff_snapshots() {
+  awk '
+    NR == FNR { before[$1] = $0; next }
+    ($1 in before) && before[$1] != $0 {
+      print "  - " before[$1]
+      print "  + " $0
+      n++
+    }
+    END { if (n == 0) print "  (no control changed)" }
+  ' "$1" "$2"
+}

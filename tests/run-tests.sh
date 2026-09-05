@@ -56,6 +56,27 @@ check "strikes counted" "$(boot_strikes)" "2"
 boot_strike_clear
 check "strikes cleared" "$(boot_strikes)" "0"
 
+echo "mixer snapshot diff"
+cat > "$TMP/snap.a" <<'SNAP'
+664	BOOL	1	Ext_Speaker_Amp Switch	Off
+670	ENUM	1	HPL Mux	>Open, Audio Playback,
+672	ENUM	1	RCV Mux	>Open, Voice Playback,
+560	INT	1	Handset Volume	4
+SNAP
+cat > "$TMP/snap.b" <<'SNAP'
+664	BOOL	1	Ext_Speaker_Amp Switch	On
+670	ENUM	1	HPL Mux	>Open, Audio Playback,
+672	ENUM	1	RCV Mux	Open, >Voice Playback,
+560	INT	1	Handset Volume	4
+SNAP
+OUT=$(diff_snapshots "$TMP/snap.a" "$TMP/snap.b")
+check "reports the changed switch"  "$(echo "$OUT" | grep -c 'Ext_Speaker_Amp Switch')" "2"
+check "reports the changed mux"     "$(echo "$OUT" | grep -c 'RCV Mux')" "2"
+check "ignores unchanged controls"  "$(echo "$OUT" | grep -c 'Handset Volume')" "0"
+check "ignores unchanged mux"       "$(echo "$OUT" | grep -c 'HPL Mux')" "0"
+OUT=$(diff_snapshots "$TMP/snap.a" "$TMP/snap.a")
+check "identical snapshots are quiet" "$(echo "$OUT" | grep -c 'no control changed')" "1"
+
 echo "portability lint"
 # Android's grep is toybox: it treats \| in a basic regex as a literal, so
 # every pattern written that way matches nothing and reports it as a clean

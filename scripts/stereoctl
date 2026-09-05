@@ -22,6 +22,9 @@ stereoctl - CMF Phone 1 stereo speaker control
                       (default pattern: receiver|earpiece|rcv|handset|spk)
   ctl NAME [VALUE]    read or write a single mixer control
   dump                dump every mixer control and its value
+  diff [seconds]      snapshot the mixer, wait, then show what changed
+                      (start or stop playback during the wait - this is how
+                      you find which controls actually carry media)
 
   xml-patch           overlay a Speaker-port-stereo audio policy (reboot)
   xml-revert          remove that overlay (reboot)
@@ -117,6 +120,22 @@ cmd_dump() {
   if [ "$(tinymix_style)" = new ]; then "$TINYMIX" contents 2>&1; else "$TINYMIX" 2>&1; fi
 }
 
+cmd_diff() {
+  _n=${1:-20}
+  find_tinymix || { echo "tinymix not found"; return 1; }
+  _a=$DATADIR/snap.before
+  _b=$DATADIR/snap.after
+  mixer_snapshot "$_a" || { echo "could not read the mixer"; return 1; }
+  echo "snapshot taken ($(grep -c . "$_a") controls)."
+  echo "now change what you want to observe - start music, stop it, plug in"
+  echo "headphones - you have ${_n}s."
+  sleep "$_n"
+  mixer_snapshot "$_b" || { echo "could not read the mixer"; return 1; }
+  echo
+  echo "controls that changed:"
+  diff_snapshots "$_a" "$_b"
+}
+
 cmd_ctl() {
   [ -n "$1" ] || { echo "usage: stereoctl ctl NAME [VALUE]"; return 1; }
   if [ -n "$2" ]; then
@@ -153,6 +172,7 @@ case ${1:-status} in
   scan)    cmd_scan "$2" ;;
   ctl)     shift; cmd_ctl "$@" ;;
   dump)    cmd_dump ;;
+  diff)    cmd_diff "$2" ;;
   xml-patch)  sh "$MODDIR/scripts/xml_patch.sh" patch ;;
   xml-revert) sh "$MODDIR/scripts/xml_patch.sh" revert ;;
   -h|--help|help) usage ;;

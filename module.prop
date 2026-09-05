@@ -1,6 +1,6 @@
 id=cmf_stereo
 name=CMF Phone 1 Stereo Speaker
-version=v0.3.0-probe
-versionCode=300
+version=v0.4.0-probe
+versionCode=400
 author=ABK
 description=[Phase 1: probe] Drives the earpiece as a second speaker for true stereo on the CMF Phone 1 (MT6878). Ships a hardware probe, a bundled static tinymix, and a config-driven mixer/sysfs engine. Run 'stereoctl probe' first - routing must be filled in from your device's real control names before stereo does anything.
