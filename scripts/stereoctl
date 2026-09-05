@@ -147,7 +147,12 @@ cmd_ctl() {
     fi
   else
     _v=$(ctl_get "$1")
-    [ -n "$_v" ] && echo "$1 = $_v" || { echo "no such control: $1"; return 1; }
+    [ -n "$_v" ] || { echo "no such control: $1"; return 1; }
+    _raw=$(ctl_get_raw "$1")
+    echo "$1 = $_v"
+    # Show the raw line too when it carries more than the value: the enum
+    # options, or an int's permitted range.
+    [ "$_raw" != "$_v" ] && echo "  ($_raw)"
   fi
 }
 

@@ -56,6 +56,54 @@ check "strikes counted" "$(boot_strikes)" "2"
 boot_strike_clear
 check "strikes cleared" "$(boot_strikes)" "0"
 
+echo "value normalisation"
+mkdir -p "$TMP/bin"
+export STUBLOG="$TMP/stub.log"
+# Formats taken verbatim from tinymix on the CMF Phone 1.
+check "enum -> selected entry" \
+  "$(ctl_normalize 'Open, Mute, > Voice Playback, Test Mode,')" "Voice Playback"
+check "enum, first entry selected" \
+  "$(ctl_normalize '> Open, Mute, Voice Playback, Test Mode,')" "Open"
+check "enum with underscores" \
+  "$(ctl_normalize 'Disable, > Enable,')" "Enable"
+# The range suffix contains "->", which must not be mistaken for an enum marker.
+check "int -> bare number" "$(ctl_normalize '31 (range 0->18)')" "31"
+check "int, zero"          "$(ctl_normalize '0 (range 0->65535)')" "0"
+check "int, negative"      "$(ctl_normalize '-1 (range -2147483648->0)')" "-1"
+check "bool On -> 1"       "$(ctl_normalize 'On')"  "1"
+check "bool Off -> 0"      "$(ctl_normalize 'Off')" "0"
+check "plain value passes through" "$(ctl_normalize '42')" "42"
+
+# Round trip: what ctl_get returns must be accepted by ctl_set.
+: > "$STUBLOG"
+cat > "$TMP/bin/tinymix-fmt" <<'STUB'
+#!/bin/sh
+case "$1" in
+  --help|-h) printf 'commands:\n\tget NAME|ID : x\n\tset NAME|ID VALUE : x\n'; exit 0 ;;
+  get)
+    case "$2" in
+      'RCV Mux')        echo 'Open, Mute, > Voice Playback, Test Mode,' ;;
+      'Handset Volume') echo '31 (range 0->18)' ;;
+      *)                echo 'Off' ;;
+    esac
+    exit 0 ;;
+  set) echo "CALLED:set:$2:$3" >> "$STUBLOG"; exit 0 ;;
+esac
+exit 1
+STUB
+chmod +x "$TMP/bin/tinymix-fmt"
+TINYMIX="$TMP/bin/tinymix-fmt"; unset TINYMIX_STYLE; MIXER_CARD=
+check "enum round trip"  "$(ctl_get 'RCV Mux')" "Voice Playback"
+check "int round trip"   "$(ctl_get 'Handset Volume')" "31"
+check "bool round trip"  "$(ctl_get 'ADDA_DL_CH1 DL_24CH_CH1')" "0"
+ctl_set 'RCV Mux' "$(ctl_get 'RCV Mux')"
+check "revert sets a bare enum name" \
+  "$(grep -c '^CALLED:set:RCV Mux:Voice Playback$' "$STUBLOG")" "1"
+ctl_set 'Handset Volume' "$(ctl_get 'Handset Volume')"
+check "revert sets a bare integer" \
+  "$(grep -c '^CALLED:set:Handset Volume:31$' "$STUBLOG")" "1"
+unset TINYMIX TINYMIX_STYLE
+
 echo "mixer snapshot diff"
 cat > "$TMP/snap.a" <<'SNAP'
 664	BOOL	1	Ext_Speaker_Amp Switch	Off
@@ -116,7 +164,6 @@ if [ $# -eq 1 ]; then echo "CALLED:get:$1" >> "$STUBLOG"; echo "Mixer name: stub
 exit 1
 STUB
 chmod +x "$TMP/bin/tinymix-new" "$TMP/bin/tinymix-old"
-export STUBLOG="$TMP/stub.log"
 
 TINYMIX="$TMP/bin/tinymix-new"; unset TINYMIX_STYLE
 check "tinyalsa 2.x detected as new" "$(tinymix_style)" "new"

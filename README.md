@@ -3,10 +3,11 @@
 Drives the earpiece as a second speaker so the CMF Phone 1 plays real stereo
 instead of mono out of the bottom firing driver.
 
-**Status: phase 1 — probe.** Installing this changes nothing about how the
-phone sounds. It ships the tooling to find out how this specific device routes
-its earpiece, plus the engine that will apply that routing once it is known.
-`actions.conf` is empty on purpose; see [Why it ships empty](#why-it-ships-empty).
+**Status: working on the CMF Phone 1** (A015 / Tetris, mt6878, Nothing OS
+B4.1, Android 16). The routing below is verified on that device and ships
+preconfigured. On anything else the module installs with an empty
+`actions.conf` and `stereoctl probe` collects what is needed — see
+[Why it ships empty elsewhere](#why-it-ships-empty-elsewhere).
 
 ---
 
@@ -55,13 +56,32 @@ the second channel back. The patch widens only the speaker `<devicePort>` to
 stereo, in an overlay copy — the vendor partition is never written. It is
 opt-in, validated before it is installed, and reversible.
 
-**3. MediaTek "2nd loudspeaker".** MTK's audio DSP has a native concept of a
-second output transducer: `bes_loudness_Sep_LR_Filter` ("Apply Same Filter
-Setting with 2nd Loudspeaker"), `2nd Loudspeaker Compensation Filter
-(2nd-ACF)`, separate L/R high- and low-pass filter orders. If the CMF Phone 1
-ships those in its AudioParam tree, the hardware path for stereo already
-exists and mostly needs enabling rather than inventing. The probe captures
-this whole tree — it is the most promising lead.
+**3. What the CMF Phone 1 actually needed.** Worth recording, because it was
+not any of the obvious answers and the probe is what found it.
+
+Media on this device never touches the internal codec. Playback runs:
+
+```
+DL_24CH_CH1/CH2 ──▶ I2SOUT4_CH1/CH2 ──▶ Awinic aw_dev_0 smart PA ──▶ speaker
+                                  ◀── I2SIN4 ──▶ UL3   (IV-sense feedback)
+```
+
+The earpiece hangs off the internal codec's DAC (`ADDA_DL`), and that DAC
+normally has **no source connected at all** — every one of its ~20 input
+switches sits Off. So pointing `RCV Mux` at the receiver routes it to a
+silent wire, which is exactly what happened on the first attempt.
+
+The switch that matters is `ADDA_DL_CH1 DL_24CH_CH1`: it feeds the internal
+DAC from the same `DL_24CH` stream already going to the speaker amp. Turn it
+on, then open `RCV Mux`, and the earpiece plays.
+
+There is only one Awinic device (`aw_dev_0`), so there is no second amp
+channel to press into service — the internal codec was the only way in.
+
+MediaTek's "2nd loudspeaker" machinery (`bes_loudness_Sep_LR_Filter`,
+`2nd-ACF`) is **not** present on this build, despite being the mechanism the
+Hi-Res Audio module aims at. The probe still captures that tree, because on
+another MTK device it may be the better route.
 
 ---
 
@@ -115,7 +135,7 @@ earpiece, and it costs idle power.
 
 ---
 
-## Why it ships empty
+## Why it ships empty elsewhere
 
 The mixer control names are device-specific. A wrong write is, in ascending
 order of regret: nothing, silence, a HAL crash, or an earpiece driven past

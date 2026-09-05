@@ -104,8 +104,28 @@ _card_args() {
   [ -n "$MIXER_CARD" ] && echo "-D $MIXER_CARD"
 }
 
-ctl_get() {
-  # ctl_get <control name> -> prints current value, empty on failure
+# Turn what tinymix prints into something tinymix will accept back.
+#
+#   enum : "Open, Mute, > Voice Playback, Test Mode," -> "Voice Playback"
+#   int  : "31 (range 0->18)"                         -> "31"
+#   bool : "On" / "Off"                               -> "1" / "0"
+#
+# Without this, revert feeds a whole enum list or a range suffix back to
+# tinymix, which refuses it - and a failed revert leaves the earpiece driven.
+# Note the int case must be tested first: a range like "0->18" contains the
+# same ">" that marks the selected enum entry.
+ctl_normalize() {
+  case $1 in
+    *'(range'*)  echo "$1" | sed 's/[[:space:]]*(range.*//; s/^[[:space:]]*//; s/[[:space:]]*$//' ;;
+    *'>'*)       echo "$1" | sed 's/.*>[[:space:]]*//; s/,.*//; s/^[[:space:]]*//; s/[[:space:]]*$//' ;;
+    On|ON|on)    echo 1 ;;
+    Off|OFF|off) echo 0 ;;
+    *)           echo "$1" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//' ;;
+  esac
+}
+
+# Raw text as tinymix prints it - useful for showing a user their options.
+ctl_get_raw() {
   find_tinymix || return 1
   [ "$(tinymix_style)" = unknown ] && return 1
   _out=$(
@@ -118,9 +138,15 @@ ctl_get() {
     fi
   )
   # Old tinymix echoes a header line before the value; keep the last non-empty
-  # line and strip any ">" cursor decoration around enum values.
+  # line. Do not strip a leading ">": it marks the selected enum entry.
   echo "$_out" | grep -v '^[[:space:]]*$' | tail -n 1 \
-    | sed 's/^[[:space:]]*//; s/[[:space:]]*$//; s/^>//'
+    | sed 's/^[[:space:]]*//; s/[[:space:]]*$//'
+}
+
+ctl_get() {
+  _raw=$(ctl_get_raw "$1") || return 1
+  [ -n "$_raw" ] || return 1
+  ctl_normalize "$_raw"
 }
 
 ctl_set() {

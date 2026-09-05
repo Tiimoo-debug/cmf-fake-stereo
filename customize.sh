@@ -21,8 +21,9 @@ if [ "$API" -lt 31 ]; then
   ui_print "  ! Android 12 or newer expected; continuing anyway."
 fi
 
+IS_CMF1=0
 case "$(getprop ro.product.device)$(getprop ro.product.model)" in
-  *[Tt]etris*|*CMF*|*cmf*) : ;;
+  *[Tt]etris*|*A015*|*CMF*|*cmf*) IS_CMF1=1 ;;
   *)
     ui_print "  ! This does not look like a CMF Phone 1."
     ui_print "    Nothing is applied automatically, so it is safe to keep"
@@ -36,14 +37,28 @@ esac
 ##############################################################################
 mkdir -p "$DATADIR/state" "$DATADIR/bin"
 
-for f in stereo.conf actions.conf; do
-  if [ -f "$DATADIR/$f" ]; then
-    ui_print "  keeping existing $f"
-  else
-    cp -f "$MODPATH/config/$f" "$DATADIR/$f"
-    ui_print "  installed default $f"
-  fi
-done
+if [ -f "$DATADIR/stereo.conf" ]; then
+  ui_print "  keeping existing stereo.conf"
+else
+  cp -f "$MODPATH/config/stereo.conf" "$DATADIR/stereo.conf"
+  ui_print "  installed default stereo.conf"
+fi
+
+# Ship the verified routing on the device it was verified on. An actions.conf
+# that already has real content is never overwritten - that is the user's
+# tuning, and it may well be better than the default.
+EXISTING=0
+[ -f "$DATADIR/actions.conf" ] && \
+  EXISTING=$(grep -vcE '^[[:space:]]*#|^[[:space:]]*$' "$DATADIR/actions.conf" 2>/dev/null)
+if [ "$EXISTING" -gt 0 ]; then
+  ui_print "  keeping your actions.conf ($EXISTING actions)"
+elif [ "$IS_CMF1" = 1 ]; then
+  cp -f "$MODPATH/config/actions.cmf1.conf" "$DATADIR/actions.conf"
+  ui_print "  installed the CMF Phone 1 routing profile"
+else
+  cp -f "$MODPATH/config/actions.conf" "$DATADIR/actions.conf"
+  ui_print "  installed empty actions.conf (run 'stereoctl probe')"
+fi
 echo 0 > "$DATADIR/boot_pending"
 
 set_perm_recursive "$MODPATH" 0 0 0755 0644
@@ -74,13 +89,25 @@ ACT=0
 ui_print "  actions  : $ACT configured"
 
 ui_print " "
-ui_print "  Next steps"
-ui_print "  ----------"
-ui_print "  1. reboot"
-ui_print "  2. in Termux:  su"
-ui_print "  3.             stereoctl probe"
-ui_print "  4. share the report from /sdcard/cmf-stereo-probe-*"
-ui_print " "
-ui_print "  Until actions.conf has routing in it, this module changes"
-ui_print "  nothing about how your phone sounds."
+if [ "$IS_CMF1" = 1 ] && [ "$EXISTING" -eq 0 ]; then
+  ui_print "  Next steps"
+  ui_print "  ----------"
+  ui_print "  1. reboot"
+  ui_print "  2. play something"
+  ui_print "  3. stereoctl status   (should show the routing applied)"
+  ui_print " "
+  ui_print "  Earpiece gain starts at 8 of 18. Raise it in"
+  ui_print "  /data/adb/cmf-stereo/actions.conf a step at a time and"
+  ui_print "  stop at the first buzz - that damage is permanent."
+else
+  ui_print "  Next steps"
+  ui_print "  ----------"
+  ui_print "  1. reboot"
+  ui_print "  2. in Termux:  su"
+  ui_print "  3.             stereoctl probe"
+  ui_print "  4. share the report from /sdcard/cmf-stereo-probe-*"
+  ui_print " "
+  ui_print "  Until actions.conf has routing in it, this module changes"
+  ui_print "  nothing about how your phone sounds."
+fi
 ui_print " "

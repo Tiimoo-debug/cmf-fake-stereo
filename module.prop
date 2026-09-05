@@ -1,6 +1,6 @@
 id=cmf_stereo
 name=CMF Phone 1 Stereo Speaker
-version=v0.4.0-probe
-versionCode=400
+version=v0.5.0
+versionCode=500
 author=ABK
-description=[Phase 1: probe] Drives the earpiece as a second speaker for true stereo on the CMF Phone 1 (MT6878). Ships a hardware probe, a bundled static tinymix, and a config-driven mixer/sysfs engine. Run 'stereoctl probe' first - routing must be filled in from your device's real control names before stereo does anything.
+description=Drives the earpiece as a second speaker on the CMF Phone 1 (A015 / mt6878), by feeding the internal codec DAC from the same stream that goes to the speaker amp. Verified routing ships preconfigured; on other devices it installs empty and 'stereoctl probe' collects what is needed. Includes a bundled static tinymix and a boot watchdog.
