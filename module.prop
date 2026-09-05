@@ -1,6 +1,6 @@
 id=cmf_stereo
 name=CMF Phone 1 Stereo Speaker
-version=v0.6.0
-versionCode=600
+version=v0.6.1
+versionCode=610
 author=ABK
 description=Drives the earpiece as a second speaker on the CMF Phone 1 (A015 / mt6878), by feeding the internal codec DAC from the same stream that goes to the speaker amp. Verified routing ships preconfigured; on other devices it installs empty and 'stereoctl probe' collects what is needed. Includes a bundled static tinymix and a boot watchdog.

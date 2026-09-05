@@ -156,6 +156,23 @@ cmd_ctl() {
   fi
 }
 
+# Disarming has to stop the daemon, not just set the kill switch. A daemon
+# left running keeps restoring saved originals underneath you, so a manual
+# "stereoctl ctl ..." appears to succeed and is silently undone seconds later
+# - which makes hand testing produce meaningless results.
+cmd_off() {
+  touch "$KILLSWITCH"
+  if _p=$(daemon_pid); then
+    kill "$_p" 2>/dev/null
+    _w=0
+    while daemon_pid >/dev/null 2>&1 && [ $_w -lt 10 ]; do sleep 1; _w=$((_w + 1)); done
+    rm -f "$PIDFILE"
+    echo "daemon stopped"
+  fi
+  revert_actions
+  echo "disarmed and reverted - controls are yours until 'stereoctl on'"
+}
+
 cmd_restart() {
   if _p=$(daemon_pid); then kill "$_p" 2>/dev/null; sleep 1; fi
   STARTUP_DELAY=0 nohup "$MODDIR/scripts/stereo-daemon.sh" >/dev/null 2>&1 &
@@ -168,7 +185,7 @@ case ${1:-status} in
   probe)   sh "$MODDIR/scripts/probe.sh" "$2" ;;
   report)  cmd_report "$2" ;;
   on)      rm -f "$KILLSWITCH"; echo "armed"; cmd_restart ;;
-  off)     touch "$KILLSWITCH"; revert_actions; echo "disarmed and reverted" ;;
+  off)     cmd_off ;;
   apply)   apply_actions; echo "applied"; ;;
   revert)  revert_actions; echo "reverted" ;;
   restart) cmd_restart ;;
