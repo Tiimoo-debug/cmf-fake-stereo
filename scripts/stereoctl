@@ -1,0 +1,119 @@
+#!/system/bin/sh
+# Control CLI for the CMF Phone 1 stereo module.
+# Run from Termux (su) or adb shell (su).
+
+MODDIR=${MODDIR:-/data/adb/modules/cmf_stereo}
+. "$MODDIR/scripts/common.sh"
+
+usage() {
+  cat <<'USAGE'
+stereoctl - CMF Phone 1 stereo speaker control
+
+  status              show module, daemon and control state
+  probe [dir]         dump the audio hardware to /sdcard (or dir)
+  on | off            arm / disarm the module (no reboot needed)
+  apply | revert      one-shot apply or restore of the configured actions
+  restart             restart the watcher daemon
+  log [n]             tail the log (default 50 lines)
+  edit                print the config paths so you can edit them
+
+  scan [pattern]      search the mixer for candidate controls
+                      (default pattern: receiver|earpiece|rcv|handset|spk)
+  ctl NAME [VALUE]    read or write a single mixer control
+  dump                dump every mixer control and its value
+
+  xml-patch           overlay a Speaker-port-stereo audio policy (reboot)
+  xml-revert          remove that overlay (reboot)
+
+Config lives in /data/adb/cmf-stereo/ and survives module updates.
+USAGE
+}
+
+cmd_status() {
+  echo "module:    $MODDIR"
+  echo "config:    $CONF"
+  echo "actions:   $ACTIONS ($(action_count) configured)"
+  if module_active; then echo "armed:     yes"; else echo "armed:     no (disabled)"; fi
+  echo "mode:      $MODE (interval ${WATCH_INTERVAL}s)"
+  if _p=$(daemon_pid); then echo "daemon:    running (pid $_p)"; else echo "daemon:    not running"; fi
+  if find_tinymix; then
+    echo "tinymix:   $TINYMIX ($(tinymix_style) style)"
+  else
+    echo "tinymix:   NOT FOUND - mixer actions cannot run"
+  fi
+  if playback_active; then echo "playback:  active"; else echo "playback:  idle"; fi
+  echo "boot:      $(boot_strikes) strike(s) since last successful boot"
+  _ov=$(find "$MODDIR/system" -name 'audio_policy_configuration*.xml' 2>/dev/null | wc -l)
+  echo "xml overlay: $_ov file(s)"
+  if [ "$(action_count)" -gt 0 ]; then
+    echo
+    echo "current values:"
+    action_lines | while IFS='|' read -r kind target value rest; do
+      target=$(echo "$target" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')
+      value=$(echo "$value" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')
+      case $kind in
+        ctl)   _now=$(ctl_get "$target") ;;
+        sysfs) _now=$(cat "$target" 2>/dev/null) ;;
+        prop)  _now=$(getprop "$target") ;;
+        *)     _now="?" ;;
+      esac
+      printf '  %-6s %-42s want=%-10s now=%s\n' "$kind" "$target" "$value" "${_now:-<missing>}"
+    done
+  fi
+}
+
+cmd_scan() {
+  find_tinymix || { echo "tinymix not found - see the README"; return 1; }
+  _pat=${1:-'receiver\|earpiece\|rcv\|handset\|spk\|speaker'}
+  if [ "$(tinymix_style)" = new ]; then
+    "$TINYMIX" contents 2>/dev/null | grep -i "$_pat"
+  else
+    "$TINYMIX" 2>/dev/null | grep -i "$_pat"
+  fi
+}
+
+cmd_dump() {
+  find_tinymix || { echo "tinymix not found - see the README"; return 1; }
+  if [ "$(tinymix_style)" = new ]; then "$TINYMIX" contents 2>&1; else "$TINYMIX" 2>&1; fi
+}
+
+cmd_ctl() {
+  [ -n "$1" ] || { echo "usage: stereoctl ctl NAME [VALUE]"; return 1; }
+  if [ -n "$2" ]; then
+    _before=$(ctl_get "$1")
+    if ctl_set "$1" "$2"; then
+      echo "$1: $_before -> $(ctl_get "$1")"
+    else
+      echo "failed to set '$1'"; return 1
+    fi
+  else
+    _v=$(ctl_get "$1")
+    [ -n "$_v" ] && echo "$1 = $_v" || { echo "no such control: $1"; return 1; }
+  fi
+}
+
+cmd_restart() {
+  if _p=$(daemon_pid); then kill "$_p" 2>/dev/null; sleep 1; fi
+  STARTUP_DELAY=0 nohup "$MODDIR/scripts/stereo-daemon.sh" >/dev/null 2>&1 &
+  sleep 2
+  if _p=$(daemon_pid); then echo "daemon restarted (pid $_p)"; else echo "daemon did not start - check: stereoctl log"; fi
+}
+
+case ${1:-status} in
+  status)  cmd_status ;;
+  probe)   sh "$MODDIR/scripts/probe.sh" "$2" ;;
+  on)      rm -f "$KILLSWITCH"; echo "armed"; cmd_restart ;;
+  off)     touch "$KILLSWITCH"; revert_actions; echo "disarmed and reverted" ;;
+  apply)   apply_actions; echo "applied"; ;;
+  revert)  revert_actions; echo "reverted" ;;
+  restart) cmd_restart ;;
+  log)     tail -n "${2:-50}" "$LOGFILE" 2>/dev/null || echo "no log yet" ;;
+  edit)    echo "$CONF"; echo "$ACTIONS" ;;
+  scan)    cmd_scan "$2" ;;
+  ctl)     shift; cmd_ctl "$@" ;;
+  dump)    cmd_dump ;;
+  xml-patch)  sh "$MODDIR/scripts/xml_patch.sh" patch ;;
+  xml-revert) sh "$MODDIR/scripts/xml_patch.sh" revert ;;
+  -h|--help|help) usage ;;
+  *)       echo "unknown command: $1"; echo; usage; exit 1 ;;
+esac
