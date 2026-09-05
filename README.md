@@ -112,6 +112,8 @@ another MTK device it may be the better route.
 
 ```
 stereoctl status              module, daemon, and live control values
+stereoctl doctor              diagnose why the earpiece is silent
+stereoctl reset               clear saved state and start clean
 stereoctl probe [dir]         dump the audio hardware
 stereoctl report              fold the newest probe into one shareable .txt
 stereoctl on | off            arm / disarm (off survives a reboot)

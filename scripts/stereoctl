@@ -10,6 +10,8 @@ usage() {
 stereoctl - CMF Phone 1 stereo speaker control
 
   status              show module, daemon and control state
+  doctor              diagnose why the earpiece is silent
+  reset               clear saved state and start clean
   probe [dir]         dump the audio hardware to /sdcard (or dir)
   report              fold the newest probe into one shareable .txt
   on | off            arm / disarm the module (survives reboot)
@@ -165,6 +167,88 @@ cmd_ctl() {
 # - which makes hand testing produce meaningless results.
 # Audition the earpiece on its own. Bypasses the guard first, otherwise
 # silencing the speaker amp silences the earpiece with it.
+# Walks every layer that can silence the earpiece, in the order they apply,
+# and says which one is responsible instead of leaving it to guesswork.
+cmd_doctor() {
+  _bad=0
+  echo "1. module armed"
+  if [ -f "$KILLSWITCH" ]; then
+    echo "   NO - kill switch set (it survives reboots). Fix: stereoctl on"
+    _bad=1
+  else
+    echo "   yes"
+  fi
+
+  echo "2. daemon"
+  if _p=$(daemon_pid); then echo "   running (pid $_p)"
+  else echo "   NOT running. Fix: stereoctl restart"; _bad=1; fi
+
+  echo "3. tinymix"
+  if find_tinymix && [ "$(tinymix_style)" != unknown ]; then
+    echo "   $TINYMIX ($(tinymix_style))"
+  else
+    echo "   UNUSABLE - mixer writes cannot happen"; _bad=1
+  fi
+
+  echo "4. playback"
+  if playback_active; then
+    echo "   active"
+  else
+    echo "   IDLE - with MODE=playback nothing is applied until audio plays."
+    echo "   Start music and run this again; everything below is meaningless"
+    echo "   until then."
+    _bad=1
+  fi
+
+  echo "5. guard"
+  if [ -f "$DATADIR/guard_bypass" ]; then
+    echo "   bypassed (solo mode)"
+  elif [ -z "${GUARD_CTL:-}" ]; then
+    echo "   none configured"
+  else
+    _g=$(ctl_get "$GUARD_CTL")
+    if [ "$_g" = "$GUARD_VALUE" ]; then
+      echo "   ok ($GUARD_CTL = $_g)"
+    else
+      echo "   BLOCKING: $GUARD_CTL = ${_g:-<missing>}, needs $GUARD_VALUE"
+      echo "   This is what happens if you disable the speaker amp by hand."
+      echo "   Fix: stereoctl solo   (or re-enable the amp)"
+      _bad=1
+    fi
+  fi
+
+  echo "6. applying now"
+  apply_actions
+  action_lines | while IFS='|' read -r kind target value rest; do
+    target=$(echo "$target" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')
+    value=$(echo "$value" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')
+    _now=$(ctl_get "$target" 2>/dev/null)
+    if [ "$_now" = "$value" ]; then
+      printf '   ok      %-34s = %s\n' "$target" "$_now"
+    else
+      printf '   FAILED  %-34s want %s, reads %s\n' "$target" "$value" "${_now:-<missing>}"
+    fi
+  done
+
+  echo
+  if [ "$_bad" -eq 0 ]; then
+    echo "Everything applied. If it is still silent, the path is powered but"
+    echo "inaudible - check Handset Volume and the media volume."
+  else
+    echo "Fix the items marked above, then run 'stereoctl doctor' again."
+  fi
+}
+
+# Wipe remembered state. Saved originals are the one thing that survives a
+# reinstall, and a bad one makes every revert restore a broken value.
+cmd_reset() {
+  if _p=$(daemon_pid); then kill "$_p" 2>/dev/null; sleep 1; fi
+  rm -f "$STATEDIR"/* "$DATADIR/guard_bypass" "$DATADIR/solo_prev" \
+        "$KILLSWITCH" "$PIDFILE" 2>/dev/null
+  echo "cleared: saved originals, guard bypass, solo state, kill switch"
+  cmd_restart
+}
+
 cmd_solo() {
   touch "$DATADIR/guard_bypass"
   if [ -n "${GUARD_CTL:-}" ]; then
@@ -222,6 +306,8 @@ case ${1:-status} in
   report)  cmd_report "$2" ;;
   on)      rm -f "$KILLSWITCH"; echo "armed"; cmd_restart ;;
   off)     cmd_off ;;
+  doctor)  cmd_doctor ;;
+  reset)   cmd_reset ;;
   solo)    cmd_solo ;;
   unsolo)  cmd_unsolo ;;
   guard)   case ${2:-status} in
