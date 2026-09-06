@@ -217,6 +217,18 @@ cmd_doctor() {
     fi
   fi
 
+  # A diagnostic that changes what it measures is a trap: applying here while
+  # playback is idle silently switches the earpiece on, which reads as
+  # "doctor fixed it" when nothing was broken.
+  if ! playback_active; then
+    echo "6. applying now"
+    echo "   skipped - playback is idle, and applying would energise the"
+    echo "   earpiece outside normal operation. Start audio and re-run."
+    echo
+    echo "Fix the items marked above, then run 'stereoctl doctor' again."
+    return
+  fi
+
   echo "6. applying now"
   apply_actions
   action_lines | while IFS='|' read -r kind target value rest; do

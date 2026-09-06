@@ -1,6 +1,6 @@
 id=cmf_stereo
 name=CMF Phone 1 Dual Speaker (fake stereo)
-version=v0.7.1
-versionCode=710
+version=v0.7.2
+versionCode=720
 author=Tiimoo-debug
 description=Plays media through the earpiece as well as the bottom speaker on the CMF Phone 1 (A015 / mt6878), by feeding the internal codec DAC from the same stream that goes to the speaker amp. Two drivers, same content - louder and fuller, NOT left/right stereo, which this hardware cannot do. Verified routing ships preconfigured; installs inert on other devices, where 'stereoctl probe' collects what is needed. Bundled static tinymix, headphone guard, boot watchdog.
