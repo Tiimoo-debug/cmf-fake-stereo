@@ -1,34 +1,58 @@
-# CMF Phone 1 — stereo speaker module
+# cmf-fake-stereo
 
-Drives the earpiece as a second speaker so the CMF Phone 1 plays real stereo
-instead of mono out of the bottom firing driver.
+A Magisk / KernelSU / APatch module that makes the **CMF Phone 1** play media
+out of its **earpiece as well as its bottom speaker**.
 
-**Status: working on the CMF Phone 1** (A015 / Tetris, mt6878, Nothing OS
-B4.1, Android 16). The routing below is verified on that device and ships
-preconfigured. On anything else the module installs with an empty
-`actions.conf` and `stereoctl probe` collects what is needed — see
+"Fake stereo" is the honest name. It is two drivers playing the same content —
+louder, fuller and taller than the single bottom-firing speaker — not two
+independent channels. True left/right separation is **not possible** on this
+hardware, and the [Findings](#findings-what-this-device-actually-does) section
+shows the measurements that prove it rather than asking you to take my word.
+
+Verified on **A015 / Tetris, MT6878, Nothing OS B4.1, Android 16.**
+
+## What it does
+
+- Plays media through the earpiece alongside the speaker, automatically
+- Earpiece gain at 31 — the hardware's real ceiling, not the 18 the control advertises
+- Applies only while audio is playing, so the receiver is not held energised
+- Steps aside for headphones and Bluetooth
+- Restores every control it touches on stop, disarm or uninstall
+- Disarms itself if it ever causes a failed boot
+
+## What it does not do
+
+- **No left/right stereo.** Both transducers are wired to the same mixer channel.
+- **No extra volume from the main speaker.** It is untouched.
+- **Nothing on other devices out of the box.** It installs inert elsewhere and
+  ships a probe to work out that device's routing.
+
+## Quick start
+
+Flash the zip (build it with `./build.sh`, or grab a release), reboot, play
+something. That is the whole setup on a CMF Phone 1 — the verified routing is
+preconfigured.
+
+To check it is working, with audio playing:
+
+```sh
+su
+stereoctl status     # all three controls should show want= matching now=
+stereoctl solo       # speaker off, earpiece only - proves it is really the earpiece
+stereoctl unsolo
+```
+
+If it is ever silent, `stereoctl doctor` walks every layer that can cause that
+and names the one responsible.
+
+## On other devices
+
+It installs with an empty `actions.conf` and changes nothing. Run
+`stereoctl probe` to dump the audio hardware — ALSA topology, every mixer
+control, smart-amp drivers, HAL configs and MediaTek's AudioParam tree — then
+`stereoctl report` to fold it into one shareable text file. The routing for
+that device gets written into `actions.conf` from what the probe finds. See
 [Why it ships empty elsewhere](#why-it-ships-empty-elsewhere).
-
----
-
-## Install
-
-Flash the zip in Magisk / KernelSU / APatch, reboot, then in Termux:
-
-```sh
-su
-stereoctl probe
-```
-
-The report lands in `/sdcard/cmf-stereo-probe-<timestamp>/` with a `.tar.gz`
-next to it. That is what gets analysed to fill in the routing.
-
-You can also run the probe without installing anything:
-
-```sh
-su
-sh /sdcard/probe.sh          # after copying scripts/probe.sh to /sdcard
-```
 
 ---
 
@@ -77,6 +101,8 @@ on, then open `RCV Mux`, and the earpiece plays.
 
 There is only one Awinic device (`aw_dev_0`), so there is no second amp
 channel to press into service — the internal codec was the only way in.
+
+## Findings: what this device actually does
 
 ### No left/right split, and why
 
@@ -302,3 +328,32 @@ sh tests/run-tests.sh
 ```
 
 `./build.sh` packages the flashable zip.
+
+Layout:
+
+| path | what |
+|---|---|
+| `scripts/common.sh` | action engine, tinymix handling, guard, snapshots |
+| `scripts/stereo-daemon.sh` | applies and re-asserts the routing |
+| `scripts/stereoctl` | the CLI |
+| `scripts/probe.sh` | hardware dump |
+| `scripts/xml_patch.sh` | audio-policy overlay (opt-in, not for this device) |
+| `config/actions.cmf1.conf` | the verified CMF Phone 1 routing |
+| `bin/tinymix` | static aarch64 tinyalsa build, see `bin/README.md` |
+
+---
+
+## Credits and licence
+
+The module scripts are free to use, modify and redistribute — attribution
+welcome, not required.
+
+`bin/tinymix` is a statically linked `aarch64` build of
+[tinyalsa](https://github.com/tinyalsa/tinyalsa), BSD-3-Clause. Its licence,
+upstream commit and exact build command are in
+[`bin/README.md`](bin/README.md), so you can reproduce it rather than trust
+the shipped binary.
+
+Built with [Claude Code](https://claude.com/claude-code) against a real
+CMF Phone 1 — every routing claim here came from measurements on the device,
+not from documentation.
