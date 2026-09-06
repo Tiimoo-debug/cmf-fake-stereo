@@ -101,10 +101,21 @@ both outputs read CH1, the right channel would be lost entirely. The
 `xml-patch` machinery stays in the module for other hardware, where the
 speaker and earpiece can be fed from different channels.
 
-MediaTek's "2nd loudspeaker" machinery (`bes_loudness_Sep_LR_Filter`,
-`2nd-ACF`) is **not** present on this build, despite being the mechanism the
-Hi-Res Audio module aims at. The probe still captures that tree, because on
-another MTK device it may be the better route.
+MediaTek's "2nd loudspeaker" machinery **is** present on this build, in
+`/vendor/etc/audio_param/`:
+
+```
+2nd Loudspeaker Compensation Filter (2nd-ACF)
+2nd Loudspeaker High/Low Pass Filter Order
+bes_loudness_Sep_LR_Filter
+bes_loudness_L_*  /  bes_loudness_R_*   (separate L and R filter sets)
+```
+
+An earlier revision of this file claimed it was absent. That was wrong — it
+came from the broken BRE greps fixed in the ERE commit, which reported a
+clean zero for a pattern that never matched anything. Whether the feature is
+merely MediaTek's stock parameter template or actually wired to a second
+transducer on this hardware is unresolved.
 
 ---
 
