@@ -259,30 +259,65 @@ never touches audio when the actions list is empty.
 
 ## Note on the Hi-Res Audio module
 
-If you tried `Hi-Res Audio™ v2.0 with aaudio_mmap` and it bootlooped this
-phone, that is expected, and worth knowing because it aims at the same
-hardware. Its `customize.sh`:
+[adivenxnataly/Hi-ResAudio](https://github.com/adivenxnataly/Hi-ResAudio) —
+`Hi-Res Audio™ v2.0 with aaudio_mmap`, versionCode 20000, upstream commit
+`78706f5` (2025-06-12).
 
-- Inserts `<mixPort>` blocks into `audio_policy_configuration.xml` at
-  **hardcoded line numbers** (`sed -i '64a\…'`, `'271a\…'`, `'302a\…'`). Those
-  offsets come from other MediaTek devices. On a policy file of a different
-  shape the XML lands mid-element, the file stops parsing, `audioserver`
-  dies on every boot, and the phone loops. This is almost certainly what bit
-  you.
-- Forces `aaudio.mmap_policy=3` and `aaudio.mmap_exclusive_policy=3`
-  ("always use MMAP") plus `killall audioserver`. If the HAL has no MMAP PCM
-  path, that is a crash loop on its own.
-- Rewrites MTK's `Playback_ParamTreeView.xml` — deleting `Field` entries and
-  renaming `Feature` blocks. MTK's AudioParamParser validates that tree
-  against the value XMLs in `/vendor/etc/audio_param/`; a mismatch aborts the
-  audio HAL.
-- Sets the speaker channel mask to `AUDIO_CHANNEL_OUT_SURROUND`, which is not
-  a thing a phone speaker port supports.
+It aims at the same hardware, so it is worth knowing what it does. It
+bootlooped a CMF Phone 1, and the cause is a plain XML syntax bug. In
+`customize.sh`:
 
-The useful part is what it reveals: MTK's `2nd Loudspeaker` / `bes_loudness`
-machinery, and the earpiece `<devicePort>` mono→stereo edit. Those ideas are
-worth keeping. The line-numbered `sed` is not — this module uses block-aware
-`awk` on the element it means to change, and validates the result.
+```sh
+name="Apply Same Filter Setting with 2nd Loudspeaker\/>
+```
+
+The attribute value is never closed — `name="` opens a quote, then text, then
+`/>`, with no closing `"`. It writes this into
+`/vendor/etc/audio_param/Playback_ParamTreeView.xml`:
+
+```xml
+<Field audio_type="PlaybackDRC" param="bes_loudness_Sep_LR_Filter" name="Apply Same Filter Setting with 2nd Loudspeaker/>
+```
+
+MediaTek's AudioParamParser cannot parse that, so the audio HAL aborts on
+every boot. The `sed` fires on any device carrying a `bes_loudness_L_lpf_order`
+field — no line numbers or luck involved. Verified present in the current
+upstream source, which is byte-identical to the released zip.
+
+Two smaller hazards in the same script:
+
+- It forces `aaudio.mmap_policy=3` and `aaudio.mmap_exclusive_policy=3`
+  ("always use MMAP") plus `killall audioserver`. On a HAL with no MMAP PCM
+  path that is a crash loop by itself.
+- It sets the speaker channel mask to `AUDIO_CHANNEL_OUT_SURROUND`, which is
+  not something a phone speaker port supports.
+
+In fairness: its `<mixPort>` insertions are **not** the problem, despite
+looking alarming. It computes the correct insertion point (`POL + POLD - 1`,
+the last line of the `primary output` block) and only writes if that equals a
+known constant, so when it inserts at all the placement is self-consistent,
+and otherwise it skips.
+
+### What it taught this module
+
+Its stereo attempt is to rewrite MediaTek's `2nd Loudspeaker` / `bes_loudness`
+machinery in `Playback_ParamTreeView.xml`. That is worth understanding, and it
+sent us looking in the right place — but two things make it a dead end here:
+
+- `Playback_ParamTreeView.xml` is the **view definition** for MediaTek's
+  parameter tuning tool (`TreeRoot`, `Feature`, `FieldList`,
+  `CategoryPathList`). The runtime coefficients live in
+  `PlaybackACF_AudioParam.xml`, which it never touches. Editing the view
+  changes which fields a tuning application displays, not what the DSP does.
+- On this device every `bes_loudness_R_*` value is `0x0` and
+  `bes_loudness_Sep_LR_Filter` is `0x0` — MediaTek's stock template, untuned,
+  because there is no second loudspeaker. And 2nd-ACF is a *filter* feature
+  anyway: it applies a different EQ curve to a second transducer's channel, it
+  does not create a route to one.
+
+The lesson taken from it: edit the element you mean to change, validate the
+result, and have a way back. Hence the block-aware `awk`, the XML structural
+check, and the boot watchdog.
 
 Do not run both modules at once.
 
