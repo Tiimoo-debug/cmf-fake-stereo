@@ -257,69 +257,84 @@ never touches audio when the actions list is empty.
 
 ---
 
-## Note on the Hi-Res Audio module
+## Credit: the Hi-Res Audio module
 
-[adivenxnataly/Hi-ResAudio](https://github.com/adivenxnataly/Hi-ResAudio) —
-`Hi-Res Audio™ v2.0 with aaudio_mmap`, versionCode 20000, upstream commit
-`78706f5` (2025-06-12).
+This module owes a real debt to
+[**Hi-Res Audio™** by Adinata (@Adivenxnataly)](https://github.com/adivenxnataly/Hi-ResAudio).
 
-It aims at the same hardware, so it is worth knowing what it does. It
-bootlooped a CMF Phone 1, and the cause is a plain XML syntax bug. In
-`customize.sh`:
+It is the reason we knew where to look. Before finding it, "use the earpiece
+as a second speaker on a MediaTek phone" was a vague idea with no entry point.
+That module is what pointed at MediaTek's `2nd Loudspeaker` / `bes_loudness`
+machinery and at the earpiece `<devicePort>` channel mask — and working out
+why those particular levers *don't* pan out on the CMF Phone 1 is what led to
+the routing that does. Reverse-engineering a vendor audio stack and giving the
+result away for free is generous work, and this project started from it.
+Thank you.
+
+It also aims at a different goal — high-resolution output, not dual speakers —
+so it is worth trying on its own terms if that is what you want.
+
+### One bug worth reporting upstream
+
+Tested against `v2.0 with aaudio_mmap`, versionCode 20000, commit `78706f5`
+(2025-06-12). It bootlooped a CMF Phone 1, and the cause is a small typo with
+large consequences. In `customize.sh`:
 
 ```sh
 name="Apply Same Filter Setting with 2nd Loudspeaker\/>
 ```
 
 The attribute value is never closed — `name="` opens a quote, then text, then
-`/>`, with no closing `"`. It writes this into
-`/vendor/etc/audio_param/Playback_ParamTreeView.xml`:
+`/>`, with no closing `"`. The fix is one character:
+
+```sh
+name="Apply Same Filter Setting with 2nd Loudspeaker\"\/>
+```
+
+Without it, this reaches `Playback_ParamTreeView.xml`:
 
 ```xml
-<Field audio_type="PlaybackDRC" param="bes_loudness_Sep_LR_Filter" name="Apply Same Filter Setting with 2nd Loudspeaker/>
+<Field ... name="Apply Same Filter Setting with 2nd Loudspeaker/>
 ```
 
 MediaTek's AudioParamParser cannot parse that, so the audio HAL aborts on
 every boot. The `sed` fires on any device carrying a `bes_loudness_L_lpf_order`
-field — no line numbers or luck involved. Verified present in the current
-upstream source, which is byte-identical to the released zip.
+field.
 
-Two smaller hazards in the same script:
+Two other things to be aware of on a device like this one: it forces
+`aaudio.mmap_policy=3` / `aaudio.mmap_exclusive_policy=3` plus
+`killall audioserver`, which needs a HAL with an MMAP PCM path; and it sets
+the speaker channel mask to `AUDIO_CHANNEL_OUT_SURROUND`, which not every
+speaker port accepts.
 
-- It forces `aaudio.mmap_policy=3` and `aaudio.mmap_exclusive_policy=3`
-  ("always use MMAP") plus `killall audioserver`. On a HAL with no MMAP PCM
-  path that is a crash loop by itself.
-- It sets the speaker channel mask to `AUDIO_CHANNEL_OUT_SURROUND`, which is
-  not something a phone speaker port supports.
+And a correction to an earlier version of this file, which claimed its
+`<mixPort>` insertions land mid-element: **they do not.** It computes the
+correct insertion point (`POL + POLD - 1`, the last line of the
+`primary output` block) and only writes when that matches a known constant,
+so placement is self-consistent, and otherwise it skips. That claim was wrong
+and is retracted.
 
-In fairness: its `<mixPort>` insertions are **not** the problem, despite
-looking alarming. It computes the correct insertion point (`POL + POLD - 1`,
-the last line of the `primary output` block) and only writes if that equals a
-known constant, so when it inserts at all the placement is self-consistent,
-and otherwise it skips.
+### Why its stereo approach doesn't work on this device
 
-### What it taught this module
-
-Its stereo attempt is to rewrite MediaTek's `2nd Loudspeaker` / `bes_loudness`
-machinery in `Playback_ParamTreeView.xml`. That is worth understanding, and it
-sent us looking in the right place — but two things make it a dead end here:
+Not a criticism of the approach — it is sound on hardware that has a second
+loudspeaker. Two things stop it here:
 
 - `Playback_ParamTreeView.xml` is the **view definition** for MediaTek's
   parameter tuning tool (`TreeRoot`, `Feature`, `FieldList`,
   `CategoryPathList`). The runtime coefficients live in
-  `PlaybackACF_AudioParam.xml`, which it never touches. Editing the view
-  changes which fields a tuning application displays, not what the DSP does.
-- On this device every `bes_loudness_R_*` value is `0x0` and
-  `bes_loudness_Sep_LR_Filter` is `0x0` — MediaTek's stock template, untuned,
-  because there is no second loudspeaker. And 2nd-ACF is a *filter* feature
-  anyway: it applies a different EQ curve to a second transducer's channel, it
-  does not create a route to one.
+  `PlaybackACF_AudioParam.xml`. Editing the view changes which fields a tuning
+  application displays, not what the DSP does.
+- On the CMF Phone 1 every `bes_loudness_R_*` value and
+  `bes_loudness_Sep_LR_Filter` read `0x0` — MediaTek's stock template,
+  untuned, because this phone has no second loudspeaker. And 2nd-ACF is a
+  *filter* feature: it applies a different EQ curve to a second transducer's
+  channel, it does not create a route to one.
 
-The lesson taken from it: edit the element you mean to change, validate the
-result, and have a way back. Hence the block-aware `awk`, the XML structural
-check, and the boot watchdog.
+What this module took from it: edit the element you mean to change, validate
+the result, and keep a way back. Hence the block-aware `awk`, the XML
+structural check, and the boot watchdog.
 
-Do not run both modules at once.
+Do not run both modules at the same time — they touch the same files.
 
 ---
 
@@ -388,6 +403,18 @@ welcome, not required.
 upstream commit and exact build command are in
 [`bin/README.md`](bin/README.md), so you can reproduce it rather than trust
 the shipped binary.
+
+Thanks to **Adinata ([@Adivenxnataly](https://github.com/adivenxnataly))**,
+whose [Hi-Res Audio™](https://github.com/adivenxnataly/Hi-ResAudio) module
+pointed this project at the right part of MediaTek's audio stack.
+
+Thanks also to the people who worked out this mod on other hardware and wrote
+it up —
+[OnePlus 6](https://www.xda-developers.com/oneplus-6-stereo-speaker-mod/),
+[Xiaomi Merlin](https://github.com/Charlie-117/merlin_DualSpeaker_mod),
+[LeEco Le Max 2](https://github.com/J3is/Dual-Speaker-x2),
+[whyred](https://xdaforums.com/t/magisk-dual-speaker-mod-for-whyred.3845595/).
+They are also the reason "pseudo-stereo" is the honest label for this.
 
 Built with [Claude Code](https://claude.com/claude-code) against a real
 CMF Phone 1 — every routing claim here came from measurements on the device,
