@@ -123,7 +123,7 @@ say "  [4/11] candidate controls"
     esac
   done
   sec "matching sysfs device nodes"
-  find /sys/devices -maxdepth 6 \( -iname '*aw88*' -o -iname '*tfa*' -o -iname '*smartpa*' \
+  timeout 30 find /sys/devices -maxdepth 6 \( -iname '*aw88*' -o -iname '*tfa*' -o -iname '*smartpa*' \
        -o -iname '*cs35*' -o -iname '*sipa*' -o -iname '*fs16*' \) 2>/dev/null | head -n 60
   sec "i2c device names"
   for f in /sys/bus/i2c/devices/*/name; do
@@ -131,7 +131,11 @@ say "  [4/11] candidate controls"
   done
   sec "loaded modules"; lsmod 2>&1 | head -n 80
   sec "codec-related kernel log"
-  (dmesg 2>/dev/null || cat /proc/kmsg 2>/dev/null) \
+  # NEVER fall back to /proc/kmsg: it is a stream, not a file, so cat blocks
+  # forever waiting for new kernel messages. dmesg can return non-zero in some
+  # root contexts even when it works from a terminal, which used to send this
+  # straight into that unbounded read and hang the whole probe.
+  (timeout 15 dmesg 2>/dev/null || true) \
     | grep -iE 'codec|asoc|snd|smartpa|aw88|tfa|speaker|receiver|mt6(3|8)' \
     | tail -n 200
 } > "$OUT/04-amplifier.txt" 2>&1
@@ -249,7 +253,7 @@ say "  [10/11] MediaTek AudioParam tree"
       | grep -iE 'volume|gain|pga|db' | head -n 40
   fi
   sec "audio thermal / protection nodes"
-  find /sys -maxdepth 6 \( -iname '*spk*prot*' -o -iname '*temp*cal*' -o -iname '*calib*' \) \
+  timeout 30 find /sys -maxdepth 6 \( -iname '*spk*prot*' -o -iname '*temp*cal*' -o -iname '*calib*' \) \
        -path '*aud*' 2>/dev/null | head -n 30
 } > "$OUT/10-safety.txt" 2>&1
 say "  [11/11] safety baseline"

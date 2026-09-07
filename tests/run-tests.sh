@@ -107,6 +107,15 @@ check "revert sets a bare integer" \
   "$(grep -c '^CALLED:set:Handset Volume:31$' "$STUBLOG")" "1"
 unset TINYMIX TINYMIX_STYLE
 
+echo "no unbounded reads in the scripts"
+# /proc/kmsg is a stream: cat on it never returns. A probe that hangs looks
+# identical to a slow one, and cost four minutes of someone staring at a
+# spinner before it was found.
+KMSG=$(grep -c 'cat /proc/kmsg' "$ROOT"/scripts/* 2>/dev/null | grep -v ':0$' | wc -l | tr -d ' ')
+check "nothing cats /proc/kmsg" "$KMSG" "0"
+check "dmesg is bounded by timeout" \
+  "$(grep -c 'timeout [0-9]* dmesg' "$ROOT/scripts/probe.sh")" "1"
+
 echo "playback detection"
 TINYMIX="$TMP/bin/tinymix-fmt"; unset TINYMIX_STYLE
 # The stub answers 'Off' -> normalised 0 for any control it does not know.
