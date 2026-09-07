@@ -212,18 +212,30 @@ the speaker amp when headphones or Bluetooth take over, so the earpiece
 follows the speaker instead of playing to nobody. One mixer read per cycle,
 no `dumpsys`.
 
-### Earpiece gain
+### Earpiece gain, and how loud it can get
 
-`Handset Volume` advertises `range 0->18`, but that ceiling is misdeclared —
-the HAL's own default is 31, matching its Headset and Lineout settings. 31 is
-also the true hardware ceiling: the register field is 5 bits, so 40 wraps to
-8 and gets *quieter*. Measured on the device.
+The earpiece is already as loud as this signal path allows.
 
-`ADDA_DL_GAIN` is deliberately left alone. The HAL raises it to ~63311 of
-65535 by itself when a stream starts, and pinning it to maximum would also
-raise headphone output, which shares the ADDA path.
+Loudness is set by **`ADDA_DL_GAIN`**, the digital gain on the internal codec
+downlink — measured inaudible at `2000`, normal at `65535` — and the HAL
+already parks it at about **63311 of 65535** during playback, roughly 0.3 dB
+from maximum. There is no reserve to unlock.
 
----
+It is deliberately **not** in the shipped config: `ADDA_DL` is shared with the
+headphone path, so pinning it would raise headphone output as a side effect
+in exchange for a fraction of a dB.
+
+`Handset Volume` — the value in `actions.conf` — is the receiver's own gain,
+range 0–31 (5-bit field; 40 wraps to 8, measured). Lowering it works, so it is
+useful if you want the earpiece quieter than the speaker, but near the top it
+barely matters: 5 and 31 sound much alike.
+
+> An earlier revision of this README claimed 31 was the loudness ceiling and
+> that values above 18 behaved non-monotonically. Both were wrong. The large
+> improvement credited to `Handset Volume 31` was `ADDA_DL_GAIN` recovering
+> after being mistakenly lowered, and the apparent disorder was small
+> variation across a nearly flat response. Recorded rather than quietly
+> edited, because the mistake is the useful part.
 
 ## Why it ships empty elsewhere
 
