@@ -107,6 +107,24 @@ check "revert sets a bare integer" \
   "$(grep -c '^CALLED:set:Handset Volume:31$' "$STUBLOG")" "1"
 unset TINYMIX TINYMIX_STYLE
 
+echo "playback detection"
+TINYMIX="$TMP/bin/tinymix-fmt"; unset TINYMIX_STYLE
+# The stub answers 'Off' -> normalised 0 for any control it does not know.
+PLAYBACK_CTL='ADDA_DL_CH1 DL_24CH_CH1'; PLAYBACK_VALUE=1
+check "mixer says not playing"  "$(playback_active && echo yes || echo no)" "no"
+PLAYBACK_VALUE=0
+check "mixer says playing"      "$(playback_active && echo yes || echo no)" "yes"
+check "detector names the control" \
+  "$(playback_detector | grep -c "ADDA_DL_CH1")" "1"
+# A control that does not exist must not pin playback to "never".
+PLAYBACK_CTL='No Such Control'; PLAYBACK_VALUE=1
+check "missing control falls back to procfs" \
+  "$(playback_detector)" "procfs substream scan"
+PLAYBACK_CTL=; PLAYBACK_VALUE=1
+check "no control configured -> procfs" \
+  "$(playback_detector)" "procfs substream scan"
+unset TINYMIX TINYMIX_STYLE
+
 echo "guard control"
 TINYMIX="$TMP/bin/tinymix-fmt"; unset TINYMIX_STYLE
 GUARD_CTL=; GUARD_VALUE=

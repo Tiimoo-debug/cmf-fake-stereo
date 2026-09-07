@@ -42,7 +42,8 @@ if [ -f "$DATADIR/stereo.conf" ]; then
   # otherwise an upgrade silently runs without them.
   ADDED=0
   for KEY in ENABLED MODE WATCH_INTERVAL STARTUP_DELAY REQUIRE_SPEAKER_ROUTE \
-             GUARD_CTL GUARD_VALUE MIXER_CARD LOG_LEVEL LOG_MAX_KB; do
+             GUARD_CTL GUARD_VALUE PLAYBACK_CTL PLAYBACK_VALUE \
+             MIXER_CARD LOG_LEVEL LOG_MAX_KB; do
     grep -q "^[[:space:]]*$KEY=" "$DATADIR/stereo.conf" && continue
     DEF=$(grep "^$KEY=" "$MODPATH/config/stereo.conf" | head -n 1)
     [ -n "$DEF" ] || continue
@@ -66,6 +67,11 @@ if [ "$IS_CMF1" = 1 ]; then
   sed -i "s/^GUARD_CTL=.*/GUARD_CTL='aw_dev_0_switch'/; s/^GUARD_VALUE=.*/GUARD_VALUE='Enable'/" \
     "$DATADIR/stereo.conf" 2>/dev/null
   ui_print "  guard: earpiece follows the speaker amp"
+  # Measured with 'stereoctl diff': this flips Off->On when media starts, and
+  # media here is DSP-offloaded, so the procfs scan never sees it.
+  sed -i "s/^PLAYBACK_CTL=.*/PLAYBACK_CTL='dsp_music_runtime_en'/; s/^PLAYBACK_VALUE=.*/PLAYBACK_VALUE='1'/" \
+    "$DATADIR/stereo.conf" 2>/dev/null
+  ui_print "  playback detected via dsp_music_runtime_en"
 fi
 
 # Ship the verified routing on the device it was verified on. An actions.conf

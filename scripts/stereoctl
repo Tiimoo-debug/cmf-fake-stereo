@@ -191,6 +191,7 @@ cmd_doctor() {
   fi
 
   echo "4. playback"
+  echo "   detector: $(playback_detector)"
   if playback_active; then
     echo "   active"
   else

@@ -197,6 +197,15 @@ prop|<property>|<value>              set a system property
 `MODE=always` keeps it on permanently — louder in theory, harder on the
 earpiece, and it costs idle power.
 
+`PLAYBACK_CTL` / `PLAYBACK_VALUE` decide how "audio is playing" is detected.
+Empty means scan `/proc/asound` for a RUNNING substream — which **misses
+DSP-offload playback entirely**. On the CMF Phone 1 media is offloaded, so the
+procfs scan never fires and `MODE=playback` would never engage while
+`MODE=always` worked. It is set to `dsp_music_runtime_en` = `1`, found with
+`stereoctl diff`: that control flips `Off` → `On` when media starts. A named
+control that cannot be read falls back to the procfs scan rather than
+reporting "never playing" forever.
+
 `GUARD_CTL` / `GUARD_VALUE` gate the routing on a mixer control's value. On
 the CMF Phone 1 the guard is `aw_dev_0_switch` = `Enable`: the HAL disables
 the speaker amp when headphones or Bluetooth take over, so the earpiece

@@ -23,6 +23,8 @@ LOG_MAX_KB=512
 MIXER_CARD=
 GUARD_CTL=
 GUARD_VALUE=
+PLAYBACK_CTL=
+PLAYBACK_VALUE=1
 
 mkdir -p "$DATADIR" "$STATEDIR" 2>/dev/null
 
@@ -173,14 +175,41 @@ ctl_exists() {
 # playback detection
 ##############################################################################
 
-# True while any playback substream is RUNNING. Cheap enough to poll: it is a
-# handful of procfs reads, no dumpsys, no binder.
+# True while audio is playing.
+#
+# Two detectors, because procfs alone is not enough. Media routed through the
+# DSP offload path never appears as a RUNNING substream in
+# /proc/asound - so on such a device MODE=playback would never engage while
+# MODE=always worked, which is exactly the symptom seen on the CMF Phone 1.
+#
+# PLAYBACK_CTL names a mixer control the HAL flips when media starts (found
+# with 'stereoctl diff'), and is authoritative when set and readable. The
+# procfs scan stays as the fallback for devices without one.
 playback_active() {
+  if [ -n "${PLAYBACK_CTL:-}" ]; then
+    _pb=$(ctl_get "$PLAYBACK_CTL" 2>/dev/null)
+    if [ -n "$_pb" ]; then
+      [ "$_pb" = "${PLAYBACK_VALUE:-1}" ] && return 0
+      return 1
+    fi
+    # Control missing (renamed by a vendor update?): fall through rather than
+    # silently reporting "never playing" forever.
+  fi
+
   for _s in /proc/asound/card*/pcm*p/sub*/status; do
     [ -f "$_s" ] || continue
     grep -q '^state: RUNNING' "$_s" 2>/dev/null && return 0
   done
   return 1
+}
+
+# Which detector answered, for diagnostics.
+playback_detector() {
+  if [ -n "${PLAYBACK_CTL:-}" ] && [ -n "$(ctl_get "$PLAYBACK_CTL" 2>/dev/null)" ]; then
+    echo "mixer control '$PLAYBACK_CTL'"
+  else
+    echo "procfs substream scan"
+  fi
 }
 
 # Best-effort check that audio is going out of the speaker rather than
